@@ -1,0 +1,42 @@
+export const members = [
+  {
+    name: "Amit Gwachha",
+    email: "amit.gwachha@example.com",
+    phone: "9800000001",
+    memberSince: "2022-01-15",
+    monthlySavingPaid: true,
+    hasLoan: false,
+  },
+  {
+    name: "Bhusan Bhele",
+    email: "bhusan.bhele@example.com",
+    phone: "9800000002",
+    memberSince: "2021-08-10",
+    monthlySavingPaid: false,
+    hasLoan: true,
+  },
+  {
+    name: "Binod Manandhar",
+    email: "binod.manandhar@example.com",
+    phone: "9800000003",
+    memberSince: "2023-03-22",
+    monthlySavingPaid: true,
+    hasLoan: false,
+  },
+  {
+    name: "Rajesh Sonepa",
+    email: "rajesh.sonepa@example.com",
+    phone: "9800000004",
+    memberSince: "2020-11-05",
+    monthlySavingPaid: true,
+    hasLoan: true,
+  },
+  {
+    name: "Susan Duwal",
+    email: "susan.duwal@example.com",
+    phone: "9800000005",
+    memberSince: "2022-07-19",
+    monthlySavingPaid: false,
+    hasLoan: false,
+  },
+];

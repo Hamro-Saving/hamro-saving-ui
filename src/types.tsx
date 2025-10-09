@@ -12,13 +12,13 @@ export interface Loan {
   member: string;
   amount: number;
   rate: number;   // percent
-  status: "On track" | "Payment due" | "Overdue";
+  status: "On track" | "Interest due" | "Overdue";
 }
 
 export interface Txn {
   id: string;
   member: string;
-  type: "Repayment" | "Disbursement" | "Fee";
+  type: "Monthly Saving" | "Interest Paid" | "Loan Return" | "Loan";
   amount: number; // negative for repayment, positive for disbursement
   date: string;   // ISO date
 }

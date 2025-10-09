@@ -41,7 +41,7 @@ export default function Dashboard() {
                       <span
                         className={[
                           "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                          l.status === "Payment due"
+                          l.status !== "On track"
                             ? "bg-amber-100 text-amber-800"
                             : "bg-emerald-100 text-emerald-800",
                         ].join(" ")}
@@ -61,7 +61,7 @@ export default function Dashboard() {
           <ul className="divide-y">
             {recentTransactions.map((t) => (
               <li key={t.id} className="py-3 flex items-center justify-between">
-                <div>
+                <div className="space-y-0.1" >
                   <div className="font-medium">{t.member}</div>
                   <div className="text-xs text-gray-500">
                     {t.type} • {t.date}
