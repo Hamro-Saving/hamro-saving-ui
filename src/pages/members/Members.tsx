@@ -40,7 +40,7 @@ const columns = [
 export default function Members() {
 	return (
 		<div className="flex-1 flex flex-col min-h-0 w-full">
-			<Panel title="Members">
+			<Panel>
 				<div className="max-h-[calc(100vh-12rem)] overflow-auto">
 					<Table
 						columns={columns}

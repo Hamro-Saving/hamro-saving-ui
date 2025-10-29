@@ -1,19 +1,18 @@
 import KpiCard from "../../components/KpiCard";
 import Panel from "../../components/Panel";
-import {summary,activeLoans,recentTransactions} from "../../data/dashboardData";
+import { summary, activeLoans } from "../../data/dashboardData";
+import { transactions } from "../../data/transactionsData";
 
 export default function Dashboard() {
-  
-
   return (
     <div className="space-y-6">
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <KpiCard label="Total Collection" value={summary.TotalCollection.toString()}/>
-        <KpiCard label="Active Loans" value={summary.OnLoan.toString()}  sub="avg rate 18%"/>
+        <KpiCard label="Total Collection" value={summary.TotalCollection.toString()} />
+        <KpiCard label="Active Loans" value={summary.OnLoan.toString()} sub="avg rate 18%" />
         <KpiCard label="Interest Collected" value={summary.Interest.toString()} />
-        <KpiCard label="Deposits" value={summary.Deposited.toString()}/>
-        <KpiCard label="Total Expenses" value={summary.Expenses.toString()}/>
-        <KpiCard label="In-Hand" value={summary.InHand.toString()}/>
+        <KpiCard label="Deposits" value={summary.Deposited.toString()} />
+        <KpiCard label="Total Expenses" value={summary.Expenses.toString()} />
+        <KpiCard label="In-Hand" value={summary.InHand.toString()} />
       </section>
 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -59,25 +58,24 @@ export default function Dashboard() {
         {/* Right column: Recent Transactions */}
         <Panel title="Recent Transactions">
           <ul className="divide-y">
-            {recentTransactions.map((t) => (
-              <li key={t.id} className="py-3 flex items-center justify-between">
-                <div className="space-y-0.1" >
-                  <div className="font-medium">{t.member}</div>
-                  <div className="text-xs text-gray-500">
-                    {t.type} • {t.date}
+            {transactions.slice(0, 5).map((t) => {
+              const isNegative = t.amount < 0;
+              const sign = isNegative ? "-" : "+";
+              const color = isNegative ? "text-red-600" : "text-emerald-600";
+              return (
+                <li key={t.id} className="py-3 flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <div className="font-medium">{t.member}</div>
+                    <div className="text-xs text-gray-500">
+                      {t.type} • {t.date}
+                    </div>
                   </div>
-                </div>
-                <div
-                  className={[
-                    "font-semibold",
-                    t.amount < 0 ? "text-emerald-600" : "text-blue-600",
-                  ].join(" ")}
-                >
-                  {t.amount < 0 ? "-" : "+"}$
-                  {Math.abs(t.amount).toLocaleString()}
-                </div>
-              </li>
-            ))}
+                  <div className={["font-semibold", color].join(" ")}>
+                    {sign}${Math.abs(t.amount).toLocaleString()}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </Panel>
       </section>
