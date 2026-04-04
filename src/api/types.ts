@@ -13,7 +13,7 @@ export interface NonMember { id: string; fullName: string; email?: string; phone
 
 export type DepositType = 'MonthlyDeposit' | 'InterestPayment' | 'LoanRepayment' | 'Other';
 
-export interface Deposit { id: string; memberId: string; memberName: string; groupId: string; amount: number; depositMonth: number; depositYear: number; type: DepositType; notes?: string; isVerified: boolean; verifiedAt?: string; createdAt: string; }
+export interface Deposit { id: string; memberId: string; memberName: string; groupId: string; amount: number; depositMonth: number; depositYear: number; depositDate: string; type: DepositType; notes?: string; isVerified: boolean; verifiedAt?: string; createdAt: string; }
 
 export type LoanStatus = 'Active' | 'PaidOff' | 'Overdue' | 'Cancelled';
 export type LoanPaymentType = 'Principal' | 'Interest' | 'Mixed';
