@@ -15,6 +15,7 @@ export default function Loans() {
   const { user, isRole } = useAuth();
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
+  const [editLoan, setEditLoan] = useState<{ id: string; amount: string; interestRate: string; dueDate: string; notes: string } | null>(null);
   const [filterStatus, setFilterStatus] = useState('Active');
   const [selectedLoan, setSelectedLoan] = useState<string | null>(null);
   const [showPayment, setShowPayment] = useState(false);
@@ -37,6 +38,12 @@ export default function Loans() {
   const addMutation = useMutation({
     mutationFn: () => loansApi.create({ ...form, amount: Number(form.amount), interestRate: Number(form.interestRate), groupId: user?.groupId, borrowerType: form.borrowerType as import('../../api/types').BorrowerType }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['loans'] }); qc.invalidateQueries({ queryKey: ['finance-summary'] }); setShowAdd(false); },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, amount, interestRate, dueDate, notes }: { id: string; amount: number; interestRate: number; dueDate?: string; notes?: string }) =>
+      loansApi.update(id, { amount, interestRate, dueDate, notes }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['loans'] }); qc.invalidateQueries({ queryKey: ['finance-summary'] }); setEditLoan(null); },
   });
 
   const payMutation = useMutation({
@@ -139,8 +146,34 @@ export default function Loans() {
         </div>
       )}
 
+      {editLoan && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Edit Loan</h2>
+            <div className="space-y-3">
+              <div><label className="text-xs text-gray-600 font-medium">Loan Amount (NPR)</label>
+                <input type="number" value={editLoan.amount} onChange={e => setEditLoan(l => l && { ...l, amount: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+              <div><label className="text-xs text-gray-600 font-medium">Interest Rate (%)</label>
+                <input type="number" step="0.1" value={editLoan.interestRate} onChange={e => setEditLoan(l => l && { ...l, interestRate: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+              <div><label className="text-xs text-gray-600 font-medium">Due Date <span className="text-gray-400">(optional)</span></label>
+                <input type="date" value={editLoan.dueDate} onChange={e => setEditLoan(l => l && { ...l, dueDate: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+              <div><label className="text-xs text-gray-600 font-medium">Notes <span className="text-gray-400">(optional)</span></label>
+                <textarea value={editLoan.notes} onChange={e => setEditLoan(l => l && { ...l, notes: e.target.value })} rows={2} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none" /></div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setEditLoan(null)} className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+              <button
+                onClick={() => updateMutation.mutate({ id: editLoan.id, amount: Number(editLoan.amount), interestRate: Number(editLoan.interestRate), dueDate: editLoan.dueDate || undefined, notes: editLoan.notes || undefined })}
+                disabled={updateMutation.isPending || !editLoan.amount || Number(editLoan.amount) <= 0}
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-60">
+                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-4">
-        {isLoading && <div className="bg-white rounded-xl p-10 text-center text-gray-400 text-sm">Loading...</div>}
         {(loans ?? []).map(loan => (
           <div key={loan.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-start justify-between mb-3">
@@ -161,6 +194,9 @@ export default function Loans() {
               <button onClick={() => { setSelectedLoan(loan.id); setShowPayment(false); }} className="text-xs text-blue-600 hover:underline">View Payments</button>
               {loan.status === 'Active' && isRole('Admin', 'SuperAdmin') && (
                 <button onClick={() => { setSelectedLoan(loan.id); setShowPayment(true); }} className="text-xs text-emerald-600 hover:underline">Record Payment</button>
+              )}
+              {!loan.approvedById && (isRole('Admin', 'SuperAdmin') || loan.borrowerId === user?.id) && (
+                <button onClick={() => setEditLoan({ id: loan.id, amount: String(loan.amount), interestRate: String(loan.interestRate), dueDate: loan.dueDate ? loan.dueDate.slice(0, 10) : '', notes: loan.notes ?? '' })} className="text-xs text-gray-500 hover:underline">Edit</button>
               )}
             </div>
             {selectedLoan === loan.id && !showPayment && payments && (

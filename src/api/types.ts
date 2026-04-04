@@ -19,7 +19,7 @@ export type LoanStatus = 'Active' | 'PaidOff' | 'Overdue' | 'Cancelled';
 export type LoanPaymentType = 'Principal' | 'Interest' | 'Mixed';
 export type BorrowerType = 'Member' | 'NonMember';
 
-export interface Loan { id: string; borrowerId: string; borrowerName: string; borrowerType: BorrowerType; groupId: string; amount: number; interestRate: number; totalInterest: number; totalDue: number; startDate: string; dueDate?: string; status: LoanStatus; notes?: string; createdAt: string; }
+export interface Loan { id: string; borrowerId: string; borrowerName: string; borrowerType: BorrowerType; groupId: string; amount: number; interestRate: number; totalInterest: number; totalDue: number; startDate: string; dueDate?: string; status: LoanStatus; notes?: string; approvedById?: string; createdAt: string; }
 
 export interface LoanPayment { id: string; loanId: string; amount: number; principalAmount: number; interestAmount: number; paidDate: string; paymentType: LoanPaymentType; notes?: string; isVerified: boolean; verifiedAt?: string; createdAt: string; }
 
