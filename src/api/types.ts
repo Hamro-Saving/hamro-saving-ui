@@ -15,11 +15,12 @@ export type DepositType = 'MonthlyDeposit' | 'InterestPayment' | 'LoanRepayment'
 
 export interface Deposit { id: string; memberId: string; memberName: string; groupId: string; amount: number; depositMonth: number; depositYear: number; depositDate: string; type: DepositType; notes?: string; isVerified: boolean; verifiedAt?: string; createdAt: string; }
 
-export type LoanStatus = 'Active' | 'PaidOff' | 'Overdue' | 'Cancelled';
+export type LoanStatus = 'Pending' | 'Approved' | 'Active' | 'PaidOff' | 'Overdue' | 'Cancelled';
 export type LoanPaymentType = 'Principal' | 'Interest' | 'Mixed';
 export type BorrowerType = 'Member' | 'NonMember';
 
-export interface Loan { id: string; borrowerId: string; borrowerName: string; borrowerType: BorrowerType; groupId: string; amount: number; interestRate: number; totalInterest: number; totalDue: number; startDate: string; dueDate?: string; status: LoanStatus; notes?: string; approvedById?: string; createdAt: string; }
+export interface ApproverInfo { approverId: string; approverName: string; approvedAt: string; }
+export interface Loan { id: string; borrowerId: string; borrowerName: string; borrowerType: BorrowerType; groupId: string; amount: number; interestRate: number; totalInterest: number; totalDue: number; accruedInterest: number; startDate: string; dueDate?: string; status: LoanStatus; notes?: string; approvedById?: string; approvalCount: number; requiredApprovals: number; hasCurrentUserApproved: boolean; approvers: ApproverInfo[]; createdAt: string; }
 
 export interface LoanPayment { id: string; loanId: string; amount: number; principalAmount: number; interestAmount: number; paidDate: string; paymentType: LoanPaymentType; notes?: string; isVerified: boolean; verifiedAt?: string; createdAt: string; }
 

@@ -33,7 +33,7 @@ export const depositsApi = {
 };
 
 export const loansApi = {
-  update: (id: string, body: { amount: number; interestRate: number; dueDate?: string; notes?: string }) =>
+  update: (id: string, body: { amount: number; interestRate: number | null; dueDate: string | null; notes?: string }) =>
     apiClient.put(`/loans/${id}`, body).then((r) => r.data),
   getAll: (params?: {
     groupId?: string;
@@ -43,7 +43,7 @@ export const loansApi = {
   getById: (id: string) =>
     apiClient.get<Loan>(`/loans/${id}`).then((r) => r.data),
   create: (
-    body: Partial<Loan> & { borrowerId: string; borrowerType: string },
+    body: Omit<Partial<Loan>, 'interestRate' | 'dueDate'> & { borrowerId: string; borrowerType: string; interestRate: number | null; dueDate: string | null },
   ) => apiClient.post<Loan>("/loans", body).then((r) => r.data),
   getPayments: (loanId: string) =>
     apiClient
@@ -55,6 +55,10 @@ export const loansApi = {
       .then((r) => r.data),
   verifyPayment: (loanId: string, paymentId: string) =>
     apiClient.put(`/loans/${loanId}/payments/${paymentId}/verify`),
+  approveLoan: (id: string) =>
+    apiClient.post(`/loans/${id}/approve`).then((r) => r.data),
+  verifyLoan: (id: string) =>
+    apiClient.put(`/loans/${id}/verify`).then((r) => r.data),
   getSummary: (params?: { groupId?: string }) =>
     apiClient.get("/loans/summary", { params }).then((r) => r.data),
 };
