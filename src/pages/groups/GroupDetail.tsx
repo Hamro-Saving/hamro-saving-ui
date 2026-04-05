@@ -15,7 +15,7 @@ export default function GroupDetail() {
   const [editError, setEditError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [showAddAdmin, setShowAddAdmin] = useState(false);
-  const [adminForm, setAdminForm] = useState({ firstName: '', lastName: '', email: '', password: '' });
+  const [adminForm, setAdminForm] = useState({ firstName: '', lastName: '', email: '', phoneNumber: '' });
   const [adminError, setAdminError] = useState('');
   const [editAdmin, setEditAdmin] = useState<{ id: string; firstName: string; lastName: string; email: string } | null>(null);
   const [editAdminError, setEditAdminError] = useState('');
@@ -50,13 +50,13 @@ export default function GroupDetail() {
   });
 
   const addAdminMutation = useMutation({
-    mutationFn: () => membersApi.create({ ...adminForm, groupId: id, role: 'Admin' }),
+    mutationFn: () => membersApi.create({ membershipType: 'Member', ...adminForm, phoneNumber: adminForm.phoneNumber || null, groupId: id }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['members', id, 'withAdmins'] });
       qc.invalidateQueries({ queryKey: ['group', id] });
       qc.invalidateQueries({ queryKey: ['groups'] });
       setShowAddAdmin(false);
-      setAdminForm({ firstName: '', lastName: '', email: '', password: '' });
+      setAdminForm({ firstName: '', lastName: '', email: '', phoneNumber: '' });
       setAdminError('');
     },
     onError: (e: { response?: { data?: { detail?: string } } }) =>
@@ -64,7 +64,7 @@ export default function GroupDetail() {
   });
 
   const updateAdminMutation = useMutation({
-    mutationFn: () => membersApi.update(editAdmin!.id, { firstName: editAdmin!.firstName, lastName: editAdmin!.lastName, email: editAdmin!.email }),
+    mutationFn: () => membersApi.update(editAdmin!.id, { firstName: editAdmin!.firstName, lastName: editAdmin!.lastName, email: editAdmin!.email, role: 'Admin' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['members', id, 'withAdmins'] });
       setEditAdmin(null);
@@ -160,7 +160,7 @@ export default function GroupDetail() {
             <p className="text-xs text-gray-400 mt-0.5">{memberCount} members · {adminCount} admin{adminCount !== 1 ? 's' : ''}</p>
           </div>
           <button
-            onClick={() => { setAdminForm({ firstName: '', lastName: '', email: '', password: '' }); setAdminError(''); setShowAddAdmin(true); }}
+            onClick={() => { setAdminForm({ firstName: '', lastName: '', email: '', phoneNumber: '' }); setAdminError(''); setShowAddAdmin(true); }}
             className="px-3 py-1.5 bg-purple-600 text-white text-xs font-medium rounded-lg hover:bg-purple-700 flex items-center gap-1.5"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -191,7 +191,7 @@ export default function GroupDetail() {
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-semibold">
-                          {m.firstName[0]}{m.lastName[0]}
+                          {m.firstName[0]}{m.lastName?.[0]}
                         </div>
                         <span className="font-medium text-gray-800">{m.fullName}</span>
                       </div>
@@ -215,7 +215,7 @@ export default function GroupDetail() {
                     <td className="px-5 py-3">
                       {m.role === 'Admin' && (
                         <button
-                          onClick={() => setEditAdmin({ id: m.id, firstName: m.firstName, lastName: m.lastName, email: m.email })}
+                          onClick={() => setEditAdmin({ id: m.id, firstName: m.firstName, lastName: m.lastName ?? '', email: m.email ?? '' })}
                           className="text-xs text-blue-600 hover:text-blue-700 font-medium"
                         >
                           Edit
@@ -279,9 +279,10 @@ export default function GroupDetail() {
                 <input type="email" value={adminForm.email} onChange={e => setAdminForm(f => ({ ...f, email: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
-                <label className="text-xs text-gray-600 font-medium">Password</label>
-                <input type="password" value={adminForm.password} onChange={e => setAdminForm(f => ({ ...f, password: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                <label className="text-xs text-gray-600 font-medium">Phone (optional)</label>
+                <input value={adminForm.phoneNumber} onChange={e => setAdminForm(f => ({ ...f, phoneNumber: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="+977..." />
               </div>
+              <p className="text-xs text-gray-400">An invitation email will be sent so the admin can set their own password.</p>
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={() => setShowAddAdmin(false)} className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancel</button>

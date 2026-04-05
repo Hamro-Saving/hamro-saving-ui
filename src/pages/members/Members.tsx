@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { membersApi, nonMembersApi, groupsApi } from '../../api/groups';
+import { membersApi, groupsApi } from '../../api/groups';
 import { useAuth } from '../../context/AuthContext';
 import { formatDate } from '../../utils/format';
-import type { Member, NonMember, UserRole } from '../../api/types';
+import type { Member, UserRole } from '../../api/types';
 
 type Tab = 'members' | 'non-members';
 
@@ -18,12 +18,12 @@ export default function Members() {
 
   // Add member state
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ firstName: '', lastName: '', email: '', password: '', role: isSuperAdmin ? 'Admin' : 'Member', groupId: '' });
+  const [addForm, setAddForm] = useState({ firstName: '', lastName: '', email: '', phoneNumber: '', groupId: '' });
   const [addError, setAddError] = useState('');
 
   // Edit member state
   const [editMember, setEditMember] = useState<Member | null>(null);
-  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', role: 'Member' });
+  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', phoneNumber: '', role: 'Member' });
   const [editError, setEditError] = useState('');
 
   // Delete member state
@@ -31,12 +31,12 @@ export default function Members() {
 
   // Add non-member state
   const [showAddNm, setShowAddNm] = useState(false);
-  const [addNmForm, setAddNmForm] = useState({ fullName: '', email: '', phone: '', address: '' });
+  const [addNmForm, setAddNmForm] = useState({ fullName: '', email: '', phoneNumber: '', address: '' });
   const [addNmError, setAddNmError] = useState('');
 
   // Edit non-member state
-  const [editNm, setEditNm] = useState<NonMember | null>(null);
-  const [editNmForm, setEditNmForm] = useState({ fullName: '', email: '', phone: '', address: '' });
+  const [editNm, setEditNm] = useState<Member | null>(null);
+  const [editNmForm, setEditNmForm] = useState({ fullName: '', email: '', phoneNumber: '', address: '' });
   const [editNmError, setEditNmError] = useState('');
 
   // Delete non-member state
@@ -46,24 +46,37 @@ export default function Members() {
 
   const { data: members = [], isLoading: membersLoading } = useQuery({
     queryKey: ['members', user?.groupId],
-    queryFn: () => membersApi.getAll({ groupId: user?.groupId }),
+    queryFn: () => membersApi.getAll({ groupId: user?.groupId, membershipType: 'Member' }),
   });
 
   const { data: nonMembers = [], isLoading: nmLoading } = useQuery({
     queryKey: ['non-members', user?.groupId],
-    queryFn: () => nonMembersApi.getAll({ groupId: user?.groupId }),
+    queryFn: () => membersApi.getAll({ groupId: user?.groupId, membershipType: 'NonMember' }),
     enabled: tab === 'non-members' || canEdit,
   });
 
   // Member mutations
   const addMutation = useMutation({
-    mutationFn: () => membersApi.create({ ...addForm, groupId: isSuperAdmin ? addForm.groupId : user?.groupId, role: addForm.role as UserRole }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['members'] }); setShowAdd(false); setAddForm({ firstName: '', lastName: '', email: '', password: '', role: isSuperAdmin ? 'Admin' : 'Member', groupId: '' }); setAddError(''); },
+    mutationFn: () => membersApi.create({
+      membershipType: 'Member',
+      firstName: addForm.firstName,
+      lastName: addForm.lastName,
+      email: addForm.email,
+      phoneNumber: addForm.phoneNumber || null,
+      groupId: isSuperAdmin ? addForm.groupId : user?.groupId,
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['members'] }); setShowAdd(false); setAddForm({ firstName: '', lastName: '', email: '', phoneNumber: '', groupId: '' }); setAddError(''); },
     onError: (e: { response?: { data?: { detail?: string } } }) => setAddError(e.response?.data?.detail ?? 'Failed to add member'),
   });
 
   const editMutation = useMutation({
-    mutationFn: () => membersApi.update(editMember!.id, { ...editForm, role: editForm.role as UserRole }),
+    mutationFn: () => membersApi.update(editMember!.id, {
+      firstName: editForm.firstName,
+      lastName: editForm.lastName || null,
+      email: editForm.email || null,
+      phoneNumber: editForm.phoneNumber || null,
+      role: editForm.role as UserRole,
+    }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['members'] }); setEditMember(null); setEditError(''); },
     onError: (e: { response?: { data?: { detail?: string } } }) => setEditError(e.response?.data?.detail ?? 'Failed to update member'),
   });
@@ -75,24 +88,37 @@ export default function Members() {
 
   // Non-member mutations
   const addNmMutation = useMutation({
-    mutationFn: () => nonMembersApi.create({ ...addNmForm, groupId: user?.groupId }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['non-members'] }); setShowAddNm(false); setAddNmForm({ fullName: '', email: '', phone: '', address: '' }); setAddNmError(''); },
+    mutationFn: () => membersApi.create({
+      membershipType: 'NonMember',
+      firstName: addNmForm.fullName,
+      email: addNmForm.email || null,
+      phoneNumber: addNmForm.phoneNumber || null,
+      address: addNmForm.address || null,
+      groupId: user?.groupId,
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['non-members'] }); setShowAddNm(false); setAddNmForm({ fullName: '', email: '', phoneNumber: '', address: '' }); setAddNmError(''); },
     onError: (e: { response?: { data?: { detail?: string } } }) => setAddNmError(e.response?.data?.detail ?? 'Failed to add non-member'),
   });
 
   const editNmMutation = useMutation({
-    mutationFn: () => nonMembersApi.update(editNm!.id, editNmForm),
+    mutationFn: () => membersApi.update(editNm!.id, {
+      firstName: editNmForm.fullName,
+      email: editNmForm.email || null,
+      phoneNumber: editNmForm.phoneNumber || null,
+      address: editNmForm.address || null,
+      role: 'Member',
+    }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['non-members'] }); setEditNm(null); setEditNmError(''); },
     onError: (e: { response?: { data?: { detail?: string } } }) => setEditNmError(e.response?.data?.detail ?? 'Failed to update non-member'),
   });
 
   const deleteNmMutation = useMutation({
-    mutationFn: (id: string) => nonMembersApi.delete(id),
+    mutationFn: (id: string) => membersApi.delete(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['non-members'] }); setDeleteNmId(null); },
   });
 
-  const openEditMember = (m: Member) => { setEditMember(m); setEditForm({ firstName: m.firstName, lastName: m.lastName, email: m.email, role: m.role }); setEditError(''); };
-  const openEditNm = (n: NonMember) => { setEditNm(n); setEditNmForm({ fullName: n.fullName, email: n.email ?? '', phone: n.phone ?? '', address: n.address ?? '' }); setEditNmError(''); };
+  const openEditMember = (m: Member) => { setEditMember(m); setEditForm({ firstName: m.firstName, lastName: m.lastName ?? '', email: m.email ?? '', phoneNumber: m.phoneNumber ?? '', role: m.role }); setEditError(''); };
+  const openEditNm = (n: Member) => { setEditNm(n); setEditNmForm({ fullName: n.firstName, email: n.email ?? '', phoneNumber: n.phoneNumber ?? '', address: n.address ?? '' }); setEditNmError(''); };
 
   return (
     <div className="p-6 space-y-6">
@@ -149,7 +175,10 @@ export default function Members() {
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${m.role === 'Admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{m.role}</span>
                   </td>
                   <td className="px-5 py-3.5">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${m.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>{m.isActive ? 'Active' : 'Inactive'}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${m.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>{m.isActive ? 'Active' : 'Inactive'}</span>
+                      {!m.hasAccount && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Invite Pending</span>}
+                    </div>
                   </td>
                   <td className="px-5 py-3.5 text-gray-500">{formatDate(m.createdAt)}</td>
                   {canEdit && (
@@ -187,7 +216,7 @@ export default function Members() {
                 <tr key={n.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-5 py-3.5 font-medium text-gray-800">{n.fullName}</td>
                   <td className="px-5 py-3.5 text-gray-600">{n.email ?? '—'}</td>
-                  <td className="px-5 py-3.5 text-gray-600">{n.phone ?? '—'}</td>
+                  <td className="px-5 py-3.5 text-gray-600">{n.phoneNumber ?? '—'}</td>
                   <td className="px-5 py-3.5">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${n.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>{n.isActive ? 'Active' : 'Inactive'}</span>
                   </td>
@@ -224,20 +253,14 @@ export default function Members() {
               </div>
               <div><label className="text-xs text-gray-600 font-medium">Email</label>
                 <input type="email" value={addForm.email} onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
-              <div><label className="text-xs text-gray-600 font-medium">Password</label>
-                <input type="password" value={addForm.password} onChange={e => setAddForm(f => ({ ...f, password: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+              <div><label className="text-xs text-gray-600 font-medium">Phone (optional)</label>
+                <input value={addForm.phoneNumber} onChange={e => setAddForm(f => ({ ...f, phoneNumber: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="+977..." /></div>
+              <p className="text-xs text-gray-400">An invitation email will be sent so the member can set their own password.</p>
               {isSuperAdmin && (
                 <div><label className="text-xs text-gray-600 font-medium">Group</label>
                   <select value={addForm.groupId} onChange={e => setAddForm(f => ({ ...f, groupId: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                     <option value="">Select a group</option>
                     {(groups ?? []).map(g => <option key={g.id} value={g.id}>{g.name} ({g.code})</option>)}
-                  </select></div>
-              )}
-              {!isSuperAdmin && (
-                <div><label className="text-xs text-gray-600 font-medium">Role</label>
-                  <select value={addForm.role} onChange={e => setAddForm(f => ({ ...f, role: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                    <option value="Member">Member</option>
-                    <option value="NonMember">Non-Member</option>
                   </select></div>
               )}
             </div>
@@ -266,6 +289,8 @@ export default function Members() {
               </div>
               <div><label className="text-xs text-gray-600 font-medium">Email</label>
                 <input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+              <div><label className="text-xs text-gray-600 font-medium">Phone (optional)</label>
+                <input value={editForm.phoneNumber} onChange={e => setEditForm(f => ({ ...f, phoneNumber: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="+977..." /></div>
               <div><label className="text-xs text-gray-600 font-medium">Role</label>
                 <select value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                   <option value="Admin">Admin</option>
@@ -310,7 +335,7 @@ export default function Members() {
               <div><label className="text-xs text-gray-600 font-medium">Email (optional)</label>
                 <input type="email" value={addNmForm.email} onChange={e => setAddNmForm(f => ({ ...f, email: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
               <div><label className="text-xs text-gray-600 font-medium">Phone (optional)</label>
-                <input value={addNmForm.phone} onChange={e => setAddNmForm(f => ({ ...f, phone: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+                <input value={addNmForm.phoneNumber} onChange={e => setAddNmForm(f => ({ ...f, phoneNumber: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
               <div><label className="text-xs text-gray-600 font-medium">Address (optional)</label>
                 <input value={addNmForm.address} onChange={e => setAddNmForm(f => ({ ...f, address: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
             </div>
@@ -333,11 +358,11 @@ export default function Members() {
             <div className="space-y-3">
               <div><label className="text-xs text-gray-600 font-medium">Full Name</label>
                 <input value={editNmForm.fullName} onChange={e => setEditNmForm(f => ({ ...f, fullName: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
-              <div><label className="text-xs text-gray-600 font-medium">Email</label>
+              <div><label className="text-xs text-gray-600 font-medium">Email (optional)</label>
                 <input type="email" value={editNmForm.email} onChange={e => setEditNmForm(f => ({ ...f, email: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
-              <div><label className="text-xs text-gray-600 font-medium">Phone</label>
-                <input value={editNmForm.phone} onChange={e => setEditNmForm(f => ({ ...f, phone: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
-              <div><label className="text-xs text-gray-600 font-medium">Address</label>
+              <div><label className="text-xs text-gray-600 font-medium">Phone (optional)</label>
+                <input value={editNmForm.phoneNumber} onChange={e => setEditNmForm(f => ({ ...f, phoneNumber: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+              <div><label className="text-xs text-gray-600 font-medium">Address (optional)</label>
                 <input value={editNmForm.address} onChange={e => setEditNmForm(f => ({ ...f, address: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
             </div>
             <div className="flex gap-3 mt-5">

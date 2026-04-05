@@ -1,15 +1,17 @@
 export interface LoginRequest { email: string; password: string; }
+export interface SignupInfoResponse { email: string; firstName: string; lastName: string; fullName: string; }
+
 export interface RegisterRequest { email: string; password: string; firstName: string; lastName: string; role: UserRole; groupId?: string; }
 
-export type UserRole = 'SuperAdmin' | 'Admin' | 'Member' | 'NonMember';
+export type UserRole = 'SuperAdmin' | 'Admin' | 'Member';
 
-export interface AuthUser { id: string; email: string; firstName: string; lastName: string; role: UserRole; groupId?: string; }
+export interface AuthUser { id: string; email: string; firstName: string; lastName: string; role: UserRole; groupId?: string; membershipType?: MembershipType; }
 
 export interface Group { id: string; name: string; code: string; description?: string; isActive: boolean; memberInterestRate: number; nonMemberInterestRate: number; memberCount: number; createdAt: string; updatedAt: string; }
 
-export interface Member { id: string; email: string; firstName: string; lastName: string; fullName: string; role: UserRole; groupId: string; isActive: boolean; createdAt: string; }
+export type MembershipType = 'Member' | 'NonMember';
 
-export interface NonMember { id: string; fullName: string; email?: string; phone?: string; address?: string; groupId: string; isActive: boolean; createdAt: string; }
+export interface Member { id: string; email?: string | null; firstName: string; lastName?: string | null; fullName: string; role: UserRole; membershipType: MembershipType; groupId: string; isActive: boolean; hasAccount: boolean; phoneNumber?: string | null; address?: string | null; createdAt: string; }
 
 export type DepositType = 'MonthlyDeposit' | 'InterestPayment' | 'LoanRepayment' | 'Other';
 

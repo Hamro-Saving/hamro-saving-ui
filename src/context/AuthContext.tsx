@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { jwtDecode } from 'jwt-decode';
-import type { AuthUser, UserRole } from '../api/types';
+import type { AuthUser, MembershipType, UserRole } from '../api/types';
 import { authApi } from '../api/auth';
 
 interface JwtPayload {
@@ -10,6 +10,8 @@ interface JwtPayload {
   GroupId?: string;
   firstName?: string;
   lastName?: string;
+  MemberId?: string;
+  MembershipType?: string;
   exp: number;
 }
 
@@ -33,6 +35,7 @@ function getUserFromToken(token: string): AuthUser {
     lastName: decoded.lastName ?? '',
     role: decoded['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'],
     groupId: decoded.GroupId || undefined,
+    membershipType: (decoded.MembershipType as MembershipType) || undefined,
   };
 }
 

@@ -4,6 +4,7 @@ import { useAuth } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import Login from './pages/login/Login';
+import Signup from './pages/signup/Signup';
 import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard';
 import Dashboard from './pages/dashboard/Dashboard';
 import Members from './pages/members/Members';
@@ -29,7 +30,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 function HomeRedirect() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role === 'NonMember') return <Navigate to="/my-loan" replace />;
+  if (user.membershipType === 'NonMember') return <Navigate to="/my-loan" replace />;
   if (user.role === 'SuperAdmin') return <Navigate to="/dashboard" replace />;
   return <Navigate to="/dashboard" replace />;
 }
@@ -38,10 +39,11 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
       <Route path="/" element={<HomeRedirect />} />
 
       <Route path="/my-loan" element={
-        <ProtectedRoute allowedRoles={['NonMember']}>
+        <ProtectedRoute allowedMembershipTypes={['NonMember']}>
           <MyLoan />
         </ProtectedRoute>
       } />

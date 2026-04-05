@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { loansApi } from '../../api/finance';
-import { membersApi, nonMembersApi } from '../../api/groups';
+import { membersApi } from '../../api/groups';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency, formatDate } from '../../utils/format';
 import type { LoanStatus } from '../../api/types';
@@ -42,7 +42,7 @@ export default function Loans() {
     queryFn: () => loansApi.getAll({ groupId: user?.groupId, status: filterStatus || undefined }),
   });
   const { data: members } = useQuery({ queryKey: ['members', user?.groupId], queryFn: () => membersApi.getAll({ groupId: user?.groupId }) });
-  const { data: nonMembers } = useQuery({ queryKey: ['non-members', user?.groupId], queryFn: () => nonMembersApi.getAll({ groupId: user?.groupId }) });
+  const { data: nonMembers } = useQuery({ queryKey: ['non-members', user?.groupId], queryFn: () => membersApi.getAll({ groupId: user?.groupId, membershipType: 'NonMember' }) });
 
   const { data: payments } = useQuery({
     queryKey: ['loan-payments', selectedLoan],
@@ -135,8 +135,8 @@ export default function Loans() {
                 <div><label className="text-xs text-gray-600 font-medium">Borrower</label>
                   <select value={form.borrowerId} onChange={e => setForm(f => ({...f, borrowerId: e.target.value}))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                     <option value="">Select borrower</option>
-                    {borrowers.map((b: { id: string; firstName?: string; lastName?: string; fullName?: string }) => (
-                      <option key={b.id} value={b.id}>{b.fullName ?? `${b.firstName} ${b.lastName}`}</option>
+                    {borrowers.map(b => (
+                      <option key={b.id} value={b.id}>{b.fullName}</option>
                     ))}
                   </select></div>
               )}

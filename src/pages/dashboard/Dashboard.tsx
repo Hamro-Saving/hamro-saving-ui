@@ -22,8 +22,7 @@ export default function Dashboard() {
     firstName: "",
     lastName: "",
     email: "",
-    password: "",
-    role: "Member",
+    phoneNumber: "",
   });
   const [memberError, setMemberError] = useState("");
 
@@ -65,9 +64,10 @@ export default function Dashboard() {
   const addMemberMutation = useMutation({
     mutationFn: () =>
       membersApi.create({
+        membershipType: 'Member',
         ...memberForm,
+        phoneNumber: memberForm.phoneNumber || null,
         groupId,
-        role: memberForm.role as import("../../api/types").UserRole,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["members", groupId] });
@@ -77,8 +77,7 @@ export default function Dashboard() {
         firstName: "",
         lastName: "",
         email: "",
-        password: "",
-        role: "Member",
+        phoneNumber: "",
       });
       setMemberError("");
     },
@@ -370,7 +369,7 @@ export default function Dashboard() {
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-semibold">
                           {m.firstName[0]}
-                          {m.lastName[0]}
+                          {m.lastName?.[0]}
                         </div>
                         <span className="font-medium text-gray-800">
                           {m.firstName} {m.lastName}
@@ -556,32 +555,18 @@ export default function Dashboard() {
               </div>
               <div>
                 <label className="text-xs text-gray-600 font-medium">
-                  Password
+                  Phone (optional)
                 </label>
                 <input
-                  type="password"
-                  value={memberForm.password}
+                  value={memberForm.phoneNumber}
                   onChange={(e) =>
-                    setMemberForm((f) => ({ ...f, password: e.target.value }))
+                    setMemberForm((f) => ({ ...f, phoneNumber: e.target.value }))
                   }
                   className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  placeholder="+977..."
                 />
               </div>
-              <div>
-                <label className="text-xs text-gray-600 font-medium">
-                  Role
-                </label>
-                <select
-                  value={memberForm.role}
-                  onChange={(e) =>
-                    setMemberForm((f) => ({ ...f, role: e.target.value }))
-                  }
-                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="Member">Member</option>
-                  <option value="NonMember">Non-Member</option>
-                </select>
-              </div>
+              <p className="text-xs text-gray-400">An invitation email will be sent so the member can set their own password.</p>
             </div>
             <div className="flex gap-3 mt-5">
               <button
