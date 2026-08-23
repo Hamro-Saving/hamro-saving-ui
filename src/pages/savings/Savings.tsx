@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { depositsApi } from "../../api/finance";
 import { membersApi } from "../../api/groups";
 import { useAuth } from "../../context/AuthContext";
+import Button from "../../components/Button";
 import {
   formatCurrency,
   formatDate,
@@ -147,10 +148,7 @@ export default function Savings() {
             Track monthly contributions and interest payments
           </p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
-        >
+        <Button variant="primary" onClick={() => setShowAdd(true)}>
           <svg
             className="w-4 h-4"
             fill="none"
@@ -165,7 +163,7 @@ export default function Savings() {
             />
           </svg>
           Record Deposit
-        </button>
+        </Button>
       </div>
 
       {/* Filters */}
@@ -353,19 +351,17 @@ export default function Savings() {
               </div>
             </div>
             <div className="flex gap-3 mt-5">
-              <button
-                onClick={() => setShowAdd(false)}
-                className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50"
-              >
+              <Button className="flex-1" onClick={() => setShowAdd(false)}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
+                className="flex-1"
                 onClick={handleSubmit}
                 disabled={addMutation.isPending}
-                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-60"
               >
                 {addMutation.isPending ? "Saving..." : "Save Deposit"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -396,19 +392,17 @@ export default function Savings() {
               </div>
             </div>
             <div className="flex gap-3 mt-5">
-              <button
-                onClick={() => setEditDeposit(null)}
-                className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50"
-              >
+              <Button className="flex-1" onClick={() => setEditDeposit(null)}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
+                className="flex-1"
                 onClick={() => updateMutation.mutate({ id: editDeposit.id, amount: Number(editDeposit.amount), notes: editDeposit.notes || undefined })}
                 disabled={updateMutation.isPending || !editDeposit.amount || Number(editDeposit.amount) <= 0}
-                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-60"
               >
                 {updateMutation.isPending ? "Saving..." : "Save Changes"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -473,22 +467,23 @@ export default function Savings() {
                   )}
                 </td>
                 <td className="px-5 py-3.5">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     {!d.isVerified && isRole("Admin", "SuperAdmin") && (
-                      <button
+                      <Button
+                        variant="primary"
+                        size="sm"
                         onClick={() => verifyMutation.mutate(d.id)}
-                        className="text-xs text-blue-600 hover:underline"
                       >
                         Verify
-                      </button>
+                      </Button>
                     )}
                     {!d.isVerified && (isRole("Admin", "SuperAdmin") || d.memberId === user?.memberId) && (
-                      <button
+                      <Button
+                        size="sm"
                         onClick={() => setEditDeposit({ id: d.id, amount: String(d.amount), notes: d.notes ?? "" })}
-                        className="text-xs text-gray-500 hover:underline"
                       >
                         Edit
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </td>
