@@ -36,10 +36,10 @@ export default function Loans() {
 
   const { data: loans, isLoading } = useQuery({
     queryKey: ['loans', user?.groupId, filterStatus],
-    queryFn: () => loansApi.getAll({ groupId: user?.groupId, status: filterStatus || undefined }),
+    queryFn: () => loansApi.getAll({ status: filterStatus || undefined }),
   });
-  const { data: members } = useQuery({ queryKey: ['members', user?.groupId], queryFn: () => membersApi.getAll({ groupId: user?.groupId }) });
-  const { data: nonMembers } = useQuery({ queryKey: ['non-members', user?.groupId], queryFn: () => membersApi.getAll({ groupId: user?.groupId, membershipType: 'NonMember' }) });
+  const { data: members } = useQuery({ queryKey: ['members', user?.groupId], queryFn: () => membersApi.getAll() });
+  const { data: nonMembers } = useQuery({ queryKey: ['non-members', user?.groupId], queryFn: () => membersApi.getAll({ membershipType: 'NonMember' }) });
 
   const invalidateLoans = () => {
     qc.invalidateQueries({ queryKey: ['loans'] });
@@ -55,7 +55,6 @@ export default function Loans() {
         amount: Number(form.amount),
         interestRate: (!applyForSelf && form.interestRate) ? Number(form.interestRate) : null,
         dueDate: form.dueDate || null,
-        groupId: user?.groupId,
         borrowerType: form.borrowerType as BorrowerType,
       });
     },

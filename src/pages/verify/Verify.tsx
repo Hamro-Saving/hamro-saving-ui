@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { depositsApi } from "../../api/finance";
 import { useAuth } from "../../context/AuthContext";
+import Button from "../../components/Button";
 import { formatCurrency, formatDate } from "../../utils/format";
 
 export default function Verify() {
@@ -10,7 +11,7 @@ export default function Verify() {
   const { data: pendingDeposits } = useQuery({
     queryKey: ["deposits", user?.groupId, "pending"],
     queryFn: () =>
-      depositsApi.getDeposits({ groupId: user?.groupId, isVerified: false }),
+      depositsApi.getDeposits({ isVerified: false }),
   });
 
   const verifyDepositMutation = useMutation({
@@ -60,13 +61,14 @@ export default function Verify() {
                     {formatCurrency(d.amount)}
                   </p>
                 </div>
-                <button
+                <Button
+                  variant="success"
+                  size="sm"
                   onClick={() => verifyDepositMutation.mutate(d.id)}
                   disabled={verifyDepositMutation.isPending}
-                  className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition disabled:opacity-60"
                 >
-                  Verify
-                </button>
+                  {verifyDepositMutation.isPending && verifyDepositMutation.variables === d.id ? "Verifying..." : "Verify"}
+                </Button>
               </div>
             </div>
           ))}

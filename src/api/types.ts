@@ -30,7 +30,7 @@ export interface Expense { id: string; groupId: string; amount: number; category
 
 export type FixedDepositStatus = 'Active' | 'Matured' | 'Withdrawn';
 
-export interface FixedDeposit { id: string; groupId: string; institutionName: string; amount: number; interestRate: number; startDate: string; maturityDate: string; status: FixedDepositStatus; notes?: string; expectedMaturityAmount: number; createdAt: string; }
+export interface FixedDeposit { id: string; groupId: string; institutionName: string; amount: number; interestRate: number; startDate: string; maturityDate: string; status: FixedDepositStatus; notes?: string; expectedMaturityAmount: number; interestEarned?: number; withdrawnAt?: string; createdAt: string; }
 
 // Mirrors FinancialSummaryResponse from GET /finance/summary — no member or loan counts.
 export interface FinancialSummary { totalSavingsCollected: number; totalOnLoan: number; totalInterestCollected: number; totalExpenses: number; totalFixedDeposits: number; inHandCash: number; }
