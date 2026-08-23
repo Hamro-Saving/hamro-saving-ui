@@ -12,16 +12,14 @@ export default function MyLoan() {
     enabled: !!user?.memberId,
   });
 
-  const activeLoan = loans?.find(l => l.status === 'Active');
+  const activeLoan = loans?.find(l => l.status === 'Active' || l.status === 'Overdue');
   const { data: payments } = useQuery({
     queryKey: ['loan-payments', activeLoan?.id],
     queryFn: () => loansApi.getPayments(activeLoan!.id),
     enabled: !!activeLoan,
   });
 
-  const totalPaid = (payments ?? []).reduce((s, p) => s + p.amount, 0);
-  const totalInterestPaid = (payments ?? []).reduce((s, p) => s + p.interestAmount, 0);
-  const remaining = activeLoan ? activeLoan.totalDue - totalPaid : 0;
+  const totalPaid = activeLoan ? activeLoan.totalPrincipalPaid + activeLoan.totalInterestPaid : 0;
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -48,10 +46,10 @@ export default function MyLoan() {
               <p className="text-blue-200 text-sm mb-1">Loan Amount</p>
               <p className="text-4xl font-bold">{formatCurrency(activeLoan.amount)}</p>
               <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-                <div><p className="text-blue-200">Interest Rate</p><p className="font-semibold">{activeLoan.interestRate}%</p></div>
-                <div><p className="text-blue-200">Total Interest</p><p className="font-semibold">{formatCurrency(activeLoan.totalInterest)}</p></div>
-                <div><p className="text-blue-200">Total Due</p><p className="font-semibold">{formatCurrency(activeLoan.totalDue)}</p></div>
-                <div><p className="text-blue-200">Started</p><p className="font-semibold">{formatDate(activeLoan.startDate)}</p></div>
+                <div><p className="text-blue-200">Interest Rate</p><p className="font-semibold">{activeLoan.interestRate}% per year</p></div>
+                <div><p className="text-blue-200">Interest so far</p><p className="font-semibold">{formatCurrency(activeLoan.accruedInterest)}</p></div>
+                <div><p className="text-blue-200">Payoff today</p><p className="font-semibold">{formatCurrency(activeLoan.payoffAmount)}</p></div>
+                <div><p className="text-blue-200">Disbursed</p><p className="font-semibold">{activeLoan.disbursedAt ? formatDate(activeLoan.disbursedAt) : '—'}</p></div>
               </div>
             </div>
 
@@ -62,11 +60,11 @@ export default function MyLoan() {
               </div>
               <div className="bg-white rounded-xl border border-gray-100 p-4 text-center shadow-sm">
                 <p className="text-xs text-gray-500 mb-1">Interest Paid</p>
-                <p className="text-lg font-bold text-purple-600">{formatCurrency(totalInterestPaid)}</p>
+                <p className="text-lg font-bold text-purple-600">{formatCurrency(activeLoan.totalInterestPaid)}</p>
               </div>
               <div className="bg-white rounded-xl border border-gray-100 p-4 text-center shadow-sm">
-                <p className="text-xs text-gray-500 mb-1">Remaining</p>
-                <p className="text-lg font-bold text-red-600">{formatCurrency(remaining)}</p>
+                <p className="text-xs text-gray-500 mb-1">Principal Left</p>
+                <p className="text-lg font-bold text-red-600">{formatCurrency(activeLoan.outstandingPrincipal)}</p>
               </div>
             </div>
 

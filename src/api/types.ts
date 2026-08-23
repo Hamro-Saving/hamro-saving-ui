@@ -22,9 +22,9 @@ export type LoanPaymentType = 'Principal' | 'Interest' | 'Mixed';
 export type BorrowerType = 'Member' | 'NonMember';
 
 export interface ApproverInfo { approverId: string; approverName: string; approvedAt: string; }
-export interface Loan { id: string; borrowerId: string; borrowerName: string; borrowerType: BorrowerType; groupId: string; amount: number; interestRate: number; totalInterest: number; totalDue: number; accruedInterest: number; startDate: string; dueDate?: string; status: LoanStatus; notes?: string; disbursedById?: string; approvalCount: number; declineCount: number; requiredApprovals: number; hasCurrentUserApproved: boolean; hasCurrentUserDeclined: boolean; approvers: ApproverInfo[]; decliners: ApproverInfo[]; createdAt: string; }
+export interface Loan { id: string; borrowerId: string; borrowerName: string; borrowerType: BorrowerType; groupId: string; amount: number; interestRate: number; outstandingPrincipal: number; accruedInterest: number; payoffAmount: number; dailyInterest: number; unpaidInterest: number; totalPrincipalPaid: number; totalInterestPaid: number; disbursedAt?: string; lastAccrualDate?: string; startDate: string; dueDate?: string; status: LoanStatus; notes?: string; disbursedById?: string; approvalCount: number; declineCount: number; requiredApprovals: number; hasCurrentUserApproved: boolean; hasCurrentUserDeclined: boolean; approvers: ApproverInfo[]; decliners: ApproverInfo[]; createdAt: string; }
 
-export interface LoanPayment { id: string; loanId: string; amount: number; principalAmount: number; interestAmount: number; paidDate: string; paymentType: LoanPaymentType; notes?: string; isVerified: boolean; verifiedAt?: string; createdAt: string; }
+export interface LoanPayment { id: string; loanId: string; amount: number; principalAmount: number; interestAmount: number; paidDate: string; paymentType: LoanPaymentType; notes?: string; interestOwedBefore: number; daysAccrued: number; outstandingPrincipalAfter: number; unpaidInterestAfter: number; isVerified: boolean; verifiedAt?: string; createdAt: string; }
 
 export interface Expense { id: string; groupId: string; amount: number; category: string; description: string; expenseDate: string; approvedById?: string; createdAt: string; }
 
