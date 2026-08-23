@@ -13,6 +13,7 @@ const STATUS_COLORS: Record<LoanStatus, string> = {
   PaidOff: 'bg-emerald-100 text-emerald-700',
   Overdue: 'bg-red-100 text-red-700',
   Cancelled: 'bg-gray-100 text-gray-600',
+  Declined: 'bg-rose-100 text-rose-700',
 };
 
 export default function Loans() {
@@ -26,7 +27,7 @@ export default function Loans() {
     setForm(f => ({
       ...f,
       borrowerType: 'Member',
-      borrowerId: forSelf && user?.id ? user.id : '',
+      borrowerId: forSelf && user?.memberId ? user.memberId : '',
     }));
     setShowAdd(true);
   };
@@ -34,6 +35,7 @@ export default function Loans() {
   const [filterStatus, setFilterStatus] = useState('');
   const [selectedLoan, setSelectedLoan] = useState<string | null>(null);
   const [showPayment, setShowPayment] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{ id: string; action: 'decline' | 'cancel' } | null>(null);
   const [payForm, setPayForm] = useState({ amount: '', principalAmount: '', interestAmount: '', notes: '' });
   const [form, setForm] = useState({ borrowerId: '', borrowerType: 'Member', amount: '', interestRate: '', startDate: new Date().toISOString().slice(0, 10), dueDate: '', notes: '' });
 
@@ -74,8 +76,18 @@ export default function Loans() {
     onSuccess: () => invalidateLoans(),
   });
 
-  const verifyLoanMutation = useMutation({
-    mutationFn: (id: string) => loansApi.verifyLoan(id),
+  const declineMutation = useMutation({
+    mutationFn: (id: string) => loansApi.declineLoan(id),
+    onSuccess: () => invalidateLoans(),
+  });
+
+  const completeDisbursementMutation = useMutation({
+    mutationFn: (id: string) => loansApi.completeDisbursement(id),
+    onSuccess: () => invalidateLoans(),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: (id: string) => loansApi.cancelLoan(id),
     onSuccess: () => invalidateLoans(),
   });
 
@@ -113,7 +125,7 @@ export default function Loans() {
       </div>
 
       <div className="flex gap-2 flex-wrap">
-        {(['', 'Pending', 'Approved', 'Active', 'PaidOff', 'Overdue', 'Cancelled'] as const).map(s => (
+        {(['', 'Pending', 'Approved', 'Active', 'PaidOff', 'Overdue', 'Declined', 'Cancelled'] as const).map(s => (
           <button key={s} onClick={() => setFilterStatus(s)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${filterStatus === s ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
             {s || 'All'}
           </button>
@@ -230,12 +242,21 @@ export default function Loans() {
 
       <div className="grid gap-4">
         {(loans ?? []).map(loan => {
-          const canEdit = loan.status === 'Pending' && loan.approvalCount === 0 &&
-            (isRole('Admin', 'SuperAdmin') || (loan.borrowerType === 'Member' && loan.borrowerId === user?.id));
-          const canApprove = loan.status === 'Pending' &&
-            loan.borrowerType === 'Member' && loan.borrowerId !== user?.id &&
-            !loan.hasCurrentUserApproved;
-          const canVerify = loan.status === 'Approved' && isRole('Admin', 'SuperAdmin');
+          const isAdmin = isRole('Admin', 'SuperAdmin');
+          const isBorrower = loan.borrowerId === user?.memberId;
+          const hasVoted = loan.hasCurrentUserApproved || loan.hasCurrentUserDeclined;
+          const canEdit = loan.status === 'Pending' && loan.approvalCount === 0 && loan.declineCount === 0 &&
+            (isAdmin || (loan.borrowerType === 'Member' && isBorrower));
+          // Approval is the members' call: admins never vote, and non-members can't either.
+          const isVoter = !isAdmin && user?.membershipType === 'Member';
+          const canVote = loan.status === 'Pending' && isVoter && !isBorrower && !hasVoted;
+          const inWorkflow = loan.status === 'Pending' || loan.status === 'Approved';
+          const canComplete = loan.status === 'Approved' && isAdmin;
+          const canCancel = isAdmin && inWorkflow;
+          const busy = [approveMutation, declineMutation, completeDisbursementMutation, cancelMutation]
+            .some(m => m.isPending && m.variables === loan.id);
+          const votesNeeded = Math.max(loan.requiredApprovals, 1);
+          const needsYou = canVote || canComplete;
 
           return (
             <div key={loan.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
@@ -245,11 +266,6 @@ export default function Loans() {
                     <p className="font-semibold text-gray-800">{loan.borrowerName}</p>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[loan.status]}`}>{loan.status}</span>
                     <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">{loan.borrowerType}</span>
-                    {loan.status === 'Pending' && (
-                      <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-50 text-yellow-700 border border-yellow-200">
-                        {loan.approvalCount}/{loan.requiredApprovals} approvals
-                      </span>
-                    )}
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">Started {formatDate(loan.startDate)}{loan.dueDate ? ` · Due ${formatDate(loan.dueDate)}` : ''}</p>
                 </div>
@@ -271,34 +287,124 @@ export default function Loans() {
                 {canEdit && (
                   <button onClick={() => setEditLoan({ id: loan.id, amount: String(loan.amount), interestRate: String(loan.interestRate), dueDate: loan.dueDate ? loan.dueDate.slice(0, 10) : '', notes: loan.notes ?? '' })} className="text-xs text-gray-500 hover:underline">Edit</button>
                 )}
-                {canApprove && (
-                  <button
-                    onClick={() => approveMutation.mutate(loan.id)}
-                    disabled={approveMutation.isPending}
-                    className="text-xs text-indigo-600 hover:underline disabled:opacity-60">
-                    Approve
-                  </button>
-                )}
-                {loan.status === 'Pending' && loan.hasCurrentUserApproved && (
-                  <span className="text-xs text-emerald-600">✓ You approved</span>
-                )}
-                {canVerify && (
-                  <button
-                    onClick={() => verifyLoanMutation.mutate(loan.id)}
-                    disabled={verifyLoanMutation.isPending}
-                    className="text-xs text-emerald-600 hover:underline disabled:opacity-60">
-                    Verify (Activate)
-                  </button>
-                )}
               </div>
-              {(loan.status === 'Pending' || loan.status === 'Approved') && loan.approvers.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-gray-50">
-                  <p className="text-xs text-gray-400 mb-1">Approved by:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {loan.approvers.map(a => (
-                      <span key={a.approverId} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-xs">{a.approverName}</span>
-                    ))}
+              {inWorkflow && (
+                <div className={`mt-3 rounded-lg border px-4 py-3 ${needsYou ? 'border-amber-300 bg-amber-50' : 'border-gray-100 bg-gray-50'}`}>
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div>
+                      <p className={`text-sm font-semibold ${needsYou ? 'text-amber-900' : 'text-gray-700'}`}>
+                        {loan.status === 'Pending' && (
+                          canVote ? 'Your vote is needed — approve or decline'
+                          : loan.hasCurrentUserApproved ? '✓ You approved this loan'
+                          : loan.hasCurrentUserDeclined ? '✕ You declined this loan'
+                          : isBorrower ? 'Waiting on your group to vote'
+                          : isAdmin ? 'The members are voting on this loan'
+                          : 'Only group members can vote on loans'
+                        )}
+                        {loan.status === 'Approved' && (
+                          isAdmin ? 'Approved by the members — ready to disburse'
+                          : 'Approved — waiting for an admin to disburse it'
+                        )}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        {loan.status === 'Pending' &&
+                          `${loan.approvalCount} approved · ${loan.declineCount} declined · ${votesNeeded} vote${votesNeeded === 1 ? '' : 's'} either way settles it`}
+                        {loan.status === 'Approved' && (
+                          isAdmin
+                            ? `Carried by ${loan.approvalCount} of ${votesNeeded} needed approvals · marking the disbursement complete activates the loan and starts interest`
+                            : `Carried by ${loan.approvalCount} of ${votesNeeded} needed approvals`
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {confirmAction?.id === loan.id ? (
+                        <>
+                          <span className="text-xs text-rose-700">
+                            {confirmAction.action === 'decline' ? 'Decline this loan?' : 'Cancel this loan for good?'}
+                          </span>
+                          <button
+                            onClick={() => {
+                              (confirmAction.action === 'decline' ? declineMutation : cancelMutation).mutate(loan.id);
+                              setConfirmAction(null);
+                            }}
+                            disabled={busy}
+                            className="px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-60">
+                            {confirmAction.action === 'decline' ? 'Yes, decline' : 'Yes, cancel it'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmAction(null)}
+                            className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-600 text-xs font-medium hover:bg-gray-50">
+                            Keep it
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {canVote && (
+                            <>
+                              <button
+                                onClick={() => approveMutation.mutate(loan.id)}
+                                disabled={busy}
+                                className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-60">
+                                {busy ? 'Saving...' : 'Approve'}
+                              </button>
+                              <button
+                                onClick={() => setConfirmAction({ id: loan.id, action: 'decline' })}
+                                disabled={busy}
+                                className="px-4 py-1.5 rounded-lg border border-rose-300 bg-white text-rose-700 text-xs font-semibold hover:bg-rose-50 disabled:opacity-60">
+                                Decline
+                              </button>
+                            </>
+                          )}
+                          {canComplete && (
+                            <button
+                              onClick={() => completeDisbursementMutation.mutate(loan.id)}
+                              disabled={busy}
+                              className="px-4 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-60">
+                              {busy ? 'Saving...' : 'Disbursement complete'}
+                            </button>
+                          )}
+                          {canCancel && (
+                            <button
+                              onClick={() => setConfirmAction({ id: loan.id, action: 'cancel' })}
+                              disabled={busy}
+                              className="px-4 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-600 text-xs font-medium hover:bg-gray-50 disabled:opacity-60">
+                              Cancel loan
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
+                  {loan.status === 'Pending' && (
+                    <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+                      <div className="h-full bg-emerald-500" style={{ width: `${Math.min(loan.approvalCount / votesNeeded, 1) * 100}%` }} />
+                      <div className="h-full bg-rose-400" style={{ width: `${Math.min(loan.declineCount / votesNeeded, 1) * 100}%` }} />
+                    </div>
+                  )}
+                </div>
+              )}
+              {loan.status !== 'Active' && (loan.approvers.length > 0 || loan.decliners.length > 0) && (
+                <div className="mt-2 pt-2 border-t border-gray-50 flex flex-wrap gap-x-6 gap-y-2">
+                  {loan.approvers.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Approved by:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {loan.approvers.map(a => (
+                          <span key={a.approverId} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-xs">{a.approverName}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {loan.decliners.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Declined by:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {loan.decliners.map(a => (
+                          <span key={a.approverId} className="px-2 py-0.5 bg-rose-50 text-rose-700 rounded-full text-xs">{a.approverName}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {selectedLoan === loan.id && !showPayment && payments && (

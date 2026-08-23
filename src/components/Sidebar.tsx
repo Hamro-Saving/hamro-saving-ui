@@ -7,7 +7,7 @@ interface NavItem { label: string; path: string; icon: React.ReactNode; roles?: 
 
 const NAV_ITEMS: NavItem[] = [
   {
-    label: 'Overview', path: '/superadmin', roles: ['SuperAdmin'],
+    label: 'Overview', path: '/overview', roles: ['SuperAdmin'],
     icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
   },
   {
@@ -80,11 +80,13 @@ export default function Sidebar() {
       </nav>
       <div className="border-t border-gray-700/50 px-4 py-4">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold">
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
+          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+            {user?.firstName?.[0]?.toUpperCase()}{user?.lastName?.[0]?.toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">{user?.firstName} {user?.lastName}</p>
+            <p className="text-sm font-semibold text-white truncate">
+              {[user?.firstName, user?.lastName].filter(Boolean).join(' ')}
+            </p>
             <p className="text-xs text-gray-400 truncate">{user?.email}</p>
           </div>
         </div>

@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const from = (location.state as { from?: Location })?.from?.pathname || '/dashboard';
+  function getDefaultRoute(role: string) {
+    if (role === 'SuperAdmin') return '/overview';
+    if (role === 'NonMember') return '/my-loan';
+    return '/dashboard';
+  }
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,8 +21,8 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
-      navigate(from, { replace: true });
+      const loggedInUser = await login(email, password);
+      navigate(getDefaultRoute(loggedInUser.role), { replace: true });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setError(msg ?? 'Invalid email or password.');

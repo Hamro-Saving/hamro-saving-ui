@@ -57,8 +57,12 @@ export const loansApi = {
     apiClient.put(`/loans/${loanId}/payments/${paymentId}/verify`),
   approveLoan: (id: string) =>
     apiClient.post(`/loans/${id}/approve`).then((r) => r.data),
-  verifyLoan: (id: string) =>
-    apiClient.put(`/loans/${id}/verify`).then((r) => r.data),
+  declineLoan: (id: string) =>
+    apiClient.post(`/loans/${id}/decline`).then((r) => r.data),
+  completeDisbursement: (id: string) =>
+    apiClient.put(`/loans/${id}/complete-disbursement`).then((r) => r.data),
+  cancelLoan: (id: string) =>
+    apiClient.post(`/loans/${id}/cancel`).then((r) => r.data),
   getSummary: (params?: { groupId?: string }) =>
     apiClient.get("/loans/summary", { params }).then((r) => r.data),
 };

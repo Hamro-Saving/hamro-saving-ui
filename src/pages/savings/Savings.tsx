@@ -92,7 +92,7 @@ export default function Savings() {
         ...form,
         amount: Number(form.amount),
         groupId: user?.groupId,
-        memberId: form.memberId || user?.id,
+        memberId: form.memberId || user?.memberId,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["deposits"] });
@@ -482,7 +482,7 @@ export default function Savings() {
                         Verify
                       </button>
                     )}
-                    {!d.isVerified && (isRole("Admin", "SuperAdmin") || d.memberId === user?.id) && (
+                    {!d.isVerified && (isRole("Admin", "SuperAdmin") || d.memberId === user?.memberId) && (
                       <button
                         onClick={() => setEditDeposit({ id: d.id, amount: String(d.amount), notes: d.notes ?? "" })}
                         className="text-xs text-gray-500 hover:underline"

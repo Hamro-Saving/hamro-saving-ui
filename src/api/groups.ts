@@ -7,8 +7,10 @@ export const groupsApi = {
   create: (body: Partial<Group>) => apiClient.post<{ id: string }>('/groups', body).then(r => r.data),
   update: (id: string, body: Partial<Group>) => apiClient.put(`/groups/${id}`, body),
   delete: (id: string) => apiClient.delete(`/groups/${id}`),
-  deactivate: (id: string) => apiClient.put(`/groups/${id}/deactivate`),
-  activate: (id: string) => apiClient.put(`/groups/${id}/activate`),
+  deactivate: (id: string) => apiClient.put(`/groups/${id}/validity`, { isActive: false, validFrom: null, validTo: null }),
+  activate: (id: string) => apiClient.put(`/groups/${id}/validity`, { isActive: true, validFrom: null, validTo: null }),
+  setValidity: (id: string, body: { isActive: boolean; validFrom?: string | null; validTo?: string | null }) =>
+    apiClient.put(`/groups/${id}/validity`, body),
 };
 
 export const membersApi = {
@@ -35,4 +37,6 @@ export const membersApi = {
   deactivate: (id: string) => apiClient.put(`/members/${id}/deactivate`),
   delete: (id: string) => apiClient.delete(`/members/${id}`),
   assignAdmin: (id: string) => apiClient.put(`/members/${id}/assign-admin`),
+  removeAdmin: (id: string) => apiClient.put(`/members/${id}/remove-admin`),
+  resendInvite: (id: string) => apiClient.post(`/members/${id}/resend-invite`),
 };

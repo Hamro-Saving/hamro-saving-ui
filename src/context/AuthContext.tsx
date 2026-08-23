@@ -19,7 +19,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => void;
   isRole: (...roles: UserRole[]) => boolean;
 }
@@ -35,6 +35,7 @@ function getUserFromToken(token: string): AuthUser {
     lastName: decoded.lastName ?? '',
     role: decoded['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'],
     groupId: decoded.GroupId || undefined,
+    memberId: decoded.MemberId || undefined,
     membershipType: (decoded.MembershipType as MembershipType) || undefined,
   };
 }
@@ -47,12 +48,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try { return getUserFromToken(t); } catch { return null; }
   });
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
     const t = await authApi.login({ email, password });
     const u = getUserFromToken(t);
     localStorage.setItem('hs_token', t);
     setToken(t);
     setUser(u);
+    return u;
   }, []);
 
   const logout = useCallback(() => {
