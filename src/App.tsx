@@ -10,6 +10,7 @@ import Dashboard from './pages/dashboard/Dashboard';
 import Members from './pages/members/Members';
 import Savings from './pages/savings/Savings';
 import Loans from './pages/loans/Loans';
+import LoanDetail from './pages/loans/LoanDetail';
 import Finance from './pages/finance/Finance';
 import Verify from './pages/verify/Verify';
 import Groups from './pages/groups/Groups';
@@ -75,6 +76,12 @@ export default function App() {
       <Route path="/loans" element={
         <ProtectedRoute allowedRoles={['Admin', 'Member']}>
           <AppLayout><Loans /></AppLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/loans/:id" element={
+        <ProtectedRoute allowedRoles={['Admin', 'Member']}>
+          <AppLayout><LoanDetail /></AppLayout>
         </ProtectedRoute>
       } />
 

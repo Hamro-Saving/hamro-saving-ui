@@ -49,12 +49,13 @@ export const loansApi = {
     apiClient
       .get<LoanPayment[]>(`/loans/${loanId}/payments`)
       .then((r) => r.data),
-  recordPayment: (loanId: string, body: Partial<LoanPayment>) =>
-    apiClient
-      .post<LoanPayment>(`/loans/${loanId}/payments`, body)
-      .then((r) => r.data),
-  verifyPayment: (loanId: string, paymentId: string) =>
-    apiClient.put(`/loans/${loanId}/payments/${paymentId}/verify`),
+  // The API settles interest up to paidDate and derives the payment type from the split
+  recordPayment: (
+    loanId: string,
+    body: { groupId?: string; principalAmount: number; interestAmount: number; paidDate: string; notes?: string },
+  ) => apiClient.post<{ id: string }>(`/loans/${loanId}/payments`, body).then((r) => r.data),
+  verifyPayment: (paymentId: string) =>
+    apiClient.put(`/loan-payments/${paymentId}/verify`),
   approveLoan: (id: string) =>
     apiClient.post(`/loans/${id}/approve`).then((r) => r.data),
   declineLoan: (id: string) =>
