@@ -76,7 +76,6 @@ export default function Savings() {
     queryKey: ["deposits", user?.groupId, filterMonth, filterVerified],
     queryFn: () =>
       depositsApi.getDeposits({
-        groupId: user?.groupId,
         month: filterMonth ? Number(filterMonth) : undefined,
         isVerified:
           filterVerified === "" ? undefined : filterVerified === "true",
@@ -84,7 +83,7 @@ export default function Savings() {
   });
   const { data: members } = useQuery({
     queryKey: ["members", user?.groupId],
-    queryFn: () => membersApi.getAll({ groupId: user?.groupId }),
+    queryFn: () => membersApi.getAll(),
   });
 
   const addMutation = useMutation({
@@ -92,7 +91,6 @@ export default function Savings() {
       depositsApi.createDeposit({
         ...form,
         amount: Number(form.amount),
-        groupId: user?.groupId,
         memberId: form.memberId || user?.memberId,
       }),
     onSuccess: () => {

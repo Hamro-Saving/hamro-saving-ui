@@ -6,15 +6,15 @@ import { groupsApi, membersApi } from "../../api/groups";
 export function useDashboardData(groupId?: string) {
   const { data: summary } = useQuery({
     queryKey: ["finance-summary", groupId],
-    queryFn: () => financeApi.getSummary({ groupId }),
+    queryFn: () => financeApi.getSummary(),
   });
   const { data: activeLoans } = useQuery({
     queryKey: ["loans", groupId, "Active"],
-    queryFn: () => loansApi.getAll({ groupId, status: "Active" }),
+    queryFn: () => loansApi.getAll({ status: "Active" }),
   });
   const { data: recentDeposits } = useQuery({
     queryKey: ["deposits", groupId],
-    queryFn: () => depositsApi.getDeposits({ groupId }),
+    queryFn: () => depositsApi.getDeposits(),
   });
   const { data: group } = useQuery({
     queryKey: ["group", groupId],
@@ -23,7 +23,7 @@ export function useDashboardData(groupId?: string) {
   });
   const { data: members } = useQuery({
     queryKey: ["members", groupId],
-    queryFn: () => membersApi.getAll({ groupId }),
+    queryFn: () => membersApi.getAll(),
     enabled: !!groupId,
   });
 

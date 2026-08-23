@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { loansApi } from '../../api/finance';
-import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
 import { formatCurrency, formatDate, todayIso } from '../../utils/format';
 import { daysSinceLastAccrual, interestAccruedOn } from './loanMath';
@@ -12,7 +11,6 @@ import type { Loan } from '../../api/types';
  * accrued to the chosen date; the admin can override it, and the API checks it again.
  */
 export default function RecordPaymentModal({ loan, onClose }: { loan: Loan; onClose: () => void }) {
-  const { user } = useAuth();
   const qc = useQueryClient();
   const [error, setError] = useState('');
   const [form, setForm] = useState({
@@ -25,7 +23,6 @@ export default function RecordPaymentModal({ loan, onClose }: { loan: Loan; onCl
 
   const record = useMutation({
     mutationFn: () => loansApi.recordPayment(loan.id, {
-      groupId: user?.groupId,
       principalAmount: Number(form.principalAmount || 0),
       interestAmount: Number(form.interestAmount || 0),
       // Midnight UTC so the API counts the same day the admin picked

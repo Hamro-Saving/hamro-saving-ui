@@ -47,12 +47,12 @@ export default function Members() {
 
   const { data: members = [], isLoading: membersLoading } = useQuery({
     queryKey: ['members', user?.groupId],
-    queryFn: () => membersApi.getAll({ groupId: user?.groupId, membershipType: 'Member' }),
+    queryFn: () => membersApi.getAll({ membershipType: 'Member' }),
   });
 
   const { data: nonMembers = [], isLoading: nmLoading } = useQuery({
     queryKey: ['non-members', user?.groupId],
-    queryFn: () => membersApi.getAll({ groupId: user?.groupId, membershipType: 'NonMember' }),
+    queryFn: () => membersApi.getAll({ membershipType: 'NonMember' }),
     enabled: tab === 'non-members' || canEdit,
   });
 
@@ -64,7 +64,8 @@ export default function Members() {
       lastName: addForm.lastName,
       email: addForm.email,
       phoneNumber: addForm.phoneNumber || null,
-      groupId: isSuperAdmin ? addForm.groupId : user?.groupId,
+      // Only a SuperAdmin names a group; for an admin the API takes it from the token
+      groupId: isSuperAdmin ? addForm.groupId : undefined,
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['members'] }); setShowAdd(false); setAddForm({ firstName: '', lastName: '', email: '', phoneNumber: '', groupId: '' }); setAddError(''); },
     onError: (e: { response?: { data?: { detail?: string } } }) => setAddError(e.response?.data?.detail ?? 'Failed to add member'),

@@ -71,18 +71,21 @@ export const loansApi = {
 export const financeApi = {
   getExpenses: (params?: { groupId?: string }) =>
     apiClient
-      .get<Expense[]>("/finance/expenses", { params })
+      .get<Expense[]>("/expenses", { params })
       .then((r) => r.data),
   createExpense: (body: Partial<Expense>) =>
-    apiClient.post<Expense>("/finance/expenses", body).then((r) => r.data),
+    apiClient.post<{ id: string }>("/expenses", body).then((r) => r.data),
   getFixedDeposits: (params?: { groupId?: string }) =>
     apiClient
-      .get<FixedDeposit[]>("/finance/fixed-deposits", { params })
+      .get<FixedDeposit[]>("/fixed-deposits", { params })
       .then((r) => r.data),
   createFixedDeposit: (body: Partial<FixedDeposit>) =>
     apiClient
-      .post<FixedDeposit>("/finance/fixed-deposits", body)
+      .post<{ id: string }>("/fixed-deposits", body)
       .then((r) => r.data),
+  // Closes the deposit and records the interest the institution actually returned
+  withdrawFixedDeposit: (id: string, body: { interestEarned: number; withdrawnAt: string }) =>
+    apiClient.put(`/fixed-deposits/${id}/withdraw`, body).then((r) => r.data),
   getSummary: (params?: { groupId?: string }) =>
     apiClient
       .get<FinancialSummary>("/finance/summary", { params })
