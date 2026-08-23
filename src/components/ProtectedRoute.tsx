@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import type { MembershipType, UserRole } from '../api/types';
 
@@ -9,20 +9,25 @@ interface ProtectedRouteProps {
   allowedMembershipTypes?: MembershipType[];
 }
 
+function getDefaultRoute(role?: UserRole, membershipType?: MembershipType) {
+  if (role === 'SuperAdmin') return '/overview';
+  if (membershipType === 'NonMember') return '/my-loan';
+  return '/dashboard';
+}
+
 export function ProtectedRoute({ children, allowedRoles, allowedMembershipTypes }: ProtectedRouteProps) {
   const { user, isAuthenticated, isRole } = useAuth();
-  const location = useLocation();
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/login" replace />;
   }
 
   if (allowedRoles && !isRole(...allowedRoles)) {
-    return <Navigate to="/unauthorized" replace />;
+    return <Navigate to={getDefaultRoute(user?.role, user?.membershipType)} replace />;
   }
 
   if (allowedMembershipTypes && user && !allowedMembershipTypes.includes(user.membershipType!)) {
-    return <Navigate to="/unauthorized" replace />;
+    return <Navigate to={getDefaultRoute(user?.role, user?.membershipType)} replace />;
   }
 
   return <>{children}</>;

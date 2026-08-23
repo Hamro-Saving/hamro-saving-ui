@@ -3,14 +3,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { groupsApi } from '../../api/groups';
 import { formatDate } from '../../utils/format';
+import { useAuth } from '../../context/AuthContext';
 import type { Group } from '../../api/types';
 
 export default function Groups() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { isRole } = useAuth();
+  const isSuperAdmin = isRole('SuperAdmin');
 
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', code: '', description: '', memberInterestRate: '10', nonMemberInterestRate: '18' });
+  const [addForm, setAddForm] = useState({ name: '', code: '', description: '', memberInterestRate: '10', nonMemberInterestRate: '18', validFrom: '', validTo: '' });
   const [addError, setAddError] = useState('');
 
   const [editGroup, setEditGroup] = useState<Group | null>(null);
@@ -23,22 +26,36 @@ export default function Groups() {
   const { data: groups = [], isLoading } = useQuery({ queryKey: ['groups'], queryFn: groupsApi.getAll });
 
   const addMutation = useMutation({
-    mutationFn: () => groupsApi.create({
-      ...addForm,
-      memberInterestRate: Number(addForm.memberInterestRate),
-      nonMemberInterestRate: Number(addForm.nonMemberInterestRate),
-    }),
+    mutationFn: async () => {
+      const { id } = await groupsApi.create({
+        ...addForm,
+        memberInterestRate: Number(addForm.memberInterestRate),
+        nonMemberInterestRate: Number(addForm.nonMemberInterestRate),
+      });
+      if (isSuperAdmin && addForm.validFrom) {
+        await groupsApi.setValidity(id, { isActive: true, validFrom: addForm.validFrom, validTo: addForm.validTo || null });
+      }
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['groups'] });
       setShowAdd(false);
-      setAddForm({ name: '', code: '', description: '', memberInterestRate: '10', nonMemberInterestRate: '18' });
+      setAddForm({ name: '', code: '', description: '', memberInterestRate: '10', nonMemberInterestRate: '18', validFrom: '', validTo: '' });
       setAddError('');
     },
     onError: (e: { response?: { data?: { detail?: string } } }) => setAddError(e.response?.data?.detail ?? 'Failed'),
   });
 
   const updateMutation = useMutation({
-    mutationFn: () => groupsApi.update(editGroup!.id, editForm),
+    mutationFn: async () => {
+      await groupsApi.update(editGroup!.id, editForm);
+      if (isSuperAdmin) {
+        await groupsApi.setValidity(editGroup!.id, {
+          isActive: editGroup!.isActive,
+          validFrom: editForm.validFrom ?? null,
+          validTo: editForm.validTo ?? null,
+        });
+      }
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['groups'] });
       setEditGroup(null);
@@ -61,7 +78,14 @@ export default function Groups() {
 
   const openEdit = (g: Group, e: React.MouseEvent) => {
     e.stopPropagation();
-    setEditForm({ name: g.name, description: g.description, memberInterestRate: g.memberInterestRate, nonMemberInterestRate: g.nonMemberInterestRate });
+    setEditForm({
+      name: g.name,
+      description: g.description,
+      memberInterestRate: g.memberInterestRate,
+      nonMemberInterestRate: g.nonMemberInterestRate,
+      validFrom: g.validFrom ?? null,
+      validTo: g.validTo ?? null,
+    });
     setEditError('');
     setEditGroup(g);
   };
@@ -104,6 +128,11 @@ export default function Groups() {
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${g.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
                     {g.isActive ? 'Active' : 'Inactive'}
                   </span>
+                  {isSuperAdmin && g.validFrom && (
+                    <span className="text-xs text-gray-400">
+                      {formatDate(g.validFrom)} — {g.validTo ? formatDate(g.validTo) : 'no end date'}
+                    </span>
+                  )}
                 </div>
                 {g.description && <p className="text-xs text-gray-400 mt-0.5">{g.description}</p>}
                 <p className="text-xs text-gray-400 mt-1">
@@ -151,12 +180,12 @@ export default function Groups() {
             {addError && <p className="text-red-600 text-sm mb-3">{addError}</p>}
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-600 font-medium">Group Name</label>
+                <label className="text-xs text-gray-600 font-medium">Group Name <span className="text-red-500">*</span></label>
                 <input value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
-                <label className="text-xs text-gray-600 font-medium">Code (unique, e.g. GRPKTM)</label>
-                <input value={addForm.code} onChange={e => setAddForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" />
+                <label className="text-xs text-gray-600 font-medium">Code <span className="text-red-500">*</span></label>
+                <input value={addForm.code} onChange={e => setAddForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" placeholder="e.g. GRPKTM" />
               </div>
               <div>
                 <label className="text-xs text-gray-600 font-medium">Description</label>
@@ -164,18 +193,43 @@ export default function Groups() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-600 font-medium">Member Interest (%)</label>
+                  <label className="text-xs text-gray-600 font-medium">Member Interest (%) <span className="text-red-500">*</span></label>
                   <input type="number" step="0.1" value={addForm.memberInterestRate} onChange={e => setAddForm(f => ({ ...f, memberInterestRate: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-600 font-medium">Non-Member Interest (%)</label>
+                  <label className="text-xs text-gray-600 font-medium">Non-Member Interest (%) <span className="text-red-500">*</span></label>
                   <input type="number" step="0.1" value={addForm.nonMemberInterestRate} onChange={e => setAddForm(f => ({ ...f, nonMemberInterestRate: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
               </div>
+              {isSuperAdmin && (
+                <div className="pt-2 border-t border-gray-100">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-600 font-medium">Valid From <span className="text-red-500">*</span></label>
+                      <input type="date" value={addForm.validFrom} onChange={e => setAddForm(f => ({ ...f, validFrom: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600 font-medium">Valid To</label>
+                      <input type="date" value={addForm.validTo} onChange={e => setAddForm(f => ({ ...f, validTo: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={() => setShowAdd(false)} className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm">Cancel</button>
-              <button onClick={() => addMutation.mutate()} disabled={addMutation.isPending} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-60">
+              <button
+                onClick={() => addMutation.mutate()}
+                disabled={
+                  addMutation.isPending ||
+                  !addForm.name.trim() ||
+                  !addForm.code.trim() ||
+                  !addForm.memberInterestRate ||
+                  !addForm.nonMemberInterestRate ||
+                  (isSuperAdmin && !addForm.validFrom)
+                }
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              >
                 {addMutation.isPending ? 'Creating...' : 'Create Group'}
               </button>
             </div>
@@ -191,7 +245,7 @@ export default function Groups() {
             {editError && <p className="text-red-600 text-sm mb-3">{editError}</p>}
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-600 font-medium">Group Name</label>
+                <label className="text-xs text-gray-600 font-medium">Group Name <span className="text-red-500">*</span></label>
                 <input value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
@@ -200,18 +254,42 @@ export default function Groups() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-600 font-medium">Member Interest (%)</label>
+                  <label className="text-xs text-gray-600 font-medium">Member Interest (%) <span className="text-red-500">*</span></label>
                   <input type="number" step="0.1" value={editForm.memberInterestRate ?? ''} onChange={e => setEditForm(f => ({ ...f, memberInterestRate: Number(e.target.value) }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-600 font-medium">Non-Member Interest (%)</label>
+                  <label className="text-xs text-gray-600 font-medium">Non-Member Interest (%) <span className="text-red-500">*</span></label>
                   <input type="number" step="0.1" value={editForm.nonMemberInterestRate ?? ''} onChange={e => setEditForm(f => ({ ...f, nonMemberInterestRate: Number(e.target.value) }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
               </div>
+              {isSuperAdmin && (
+                <div className="pt-2 border-t border-gray-100">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-600 font-medium">Valid From <span className="text-red-500">*</span></label>
+                      <input type="date" value={editForm.validFrom ? editForm.validFrom.split('T')[0] : ''} onChange={e => setEditForm(f => ({ ...f, validFrom: e.target.value || null }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600 font-medium">Valid To</label>
+                      <input type="date" value={editForm.validTo ? editForm.validTo.split('T')[0] : ''} onChange={e => setEditForm(f => ({ ...f, validTo: e.target.value || null }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={() => setEditGroup(null)} className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm">Cancel</button>
-              <button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-60">
+              <button
+                onClick={() => updateMutation.mutate()}
+                disabled={
+                  updateMutation.isPending ||
+                  !editForm.name?.trim() ||
+                  editForm.memberInterestRate == null ||
+                  editForm.nonMemberInterestRate == null ||
+                  (isSuperAdmin && !editForm.validFrom)
+                }
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              >
                 {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
@@ -245,3 +323,4 @@ export default function Groups() {
     </div>
   );
 }
+

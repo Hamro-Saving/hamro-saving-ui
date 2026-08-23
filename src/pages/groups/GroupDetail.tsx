@@ -1,24 +1,92 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { groupsApi, membersApi } from '../../api/groups';
 import { formatDate } from '../../utils/format';
+import { useAuth } from '../../context/AuthContext';
 import type { Group } from '../../api/types';
+
+function ActionMenu({ items }: { items: { label: string; onClick: () => void; danger?: boolean; disabled?: boolean }[] }) {
+  const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!btnRef.current?.contains(target) && !menuRef.current?.contains(target))
+        setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const handleOpen = () => {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      const menuHeight = items.length * 36 + 8;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const top = spaceBelow >= menuHeight
+        ? rect.bottom + 4
+        : rect.top - menuHeight - 4;
+      setMenuStyle({ position: 'fixed', top, right: window.innerWidth - rect.right, width: 176, zIndex: 9999 });
+    }
+    setOpen(o => !o);
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={handleOpen}
+        className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+        title="Actions"
+      >
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <circle cx="4" cy="10" r="1.5" /><circle cx="10" cy="10" r="1.5" /><circle cx="16" cy="10" r="1.5" />
+        </svg>
+      </button>
+      {open && createPortal(
+        <div ref={menuRef} style={menuStyle} className="bg-white rounded-lg shadow-lg border border-gray-100 py-1">
+          {items.map(item => (
+            <button
+              key={item.label}
+              onClick={() => { item.onClick(); setOpen(false); }}
+              disabled={item.disabled}
+              className={`w-full text-left px-4 py-2 text-xs font-medium disabled:opacity-40 ${
+                item.danger ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
 
 export default function GroupDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { isRole } = useAuth();
+  const isSuperAdmin = isRole('SuperAdmin');
 
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Group>>({});
   const [editError, setEditError] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [showAddAdmin, setShowAddAdmin] = useState(false);
   const [adminForm, setAdminForm] = useState({ firstName: '', lastName: '', email: '', phoneNumber: '' });
   const [adminError, setAdminError] = useState('');
   const [editAdmin, setEditAdmin] = useState<{ id: string; firstName: string; lastName: string; email: string } | null>(null);
   const [editAdminError, setEditAdminError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [actionSuccess, setActionSuccess] = useState('');
 
   const { data: group, isLoading: groupLoading } = useQuery({
     queryKey: ['group', id],
@@ -33,7 +101,16 @@ export default function GroupDetail() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: () => groupsApi.update(id!, editForm),
+    mutationFn: async () => {
+      await groupsApi.update(id!, editForm);
+      if (isSuperAdmin) {
+        await groupsApi.setValidity(id!, {
+          isActive: group!.isActive,
+          validFrom: editForm.validFrom ?? null,
+          validTo: editForm.validTo ?? null,
+        });
+      }
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['group', id] });
       qc.invalidateQueries({ queryKey: ['groups'] });
@@ -44,13 +121,41 @@ export default function GroupDetail() {
       setEditError(e.response?.data?.detail ?? 'Failed to update group'),
   });
 
+  const setValidityMutation = useMutation({
+    mutationFn: (body: { isActive: boolean; validFrom?: string | null; validTo?: string | null }) =>
+      groupsApi.setValidity(id!, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['group', id] });
+      qc.invalidateQueries({ queryKey: ['groups'] });
+    },
+    onError: (e: { response?: { data?: { detail?: string } } }) =>
+      setActionError(e.response?.data?.detail ?? 'Failed to update group status'),
+  });
+
   const assignAdminMutation = useMutation({
     mutationFn: (memberId: string) => membersApi.assignAdmin(memberId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['members', id, 'withAdmins'] }),
   });
 
+  const removeAdminMutation = useMutation({
+    mutationFn: (memberId: string) => membersApi.removeAdmin(memberId),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['members', id, 'withAdmins'] }); setActionError(''); },
+    onError: (e: { response?: { data?: { detail?: string } } }) =>
+      setActionError(e.response?.data?.detail ?? 'Failed to remove admin'),
+  });
+
+  const resendInviteMutation = useMutation({
+    mutationFn: (memberId: string) => membersApi.resendInvite(memberId),
+    onSuccess: () => { setActionSuccess('Invite email sent successfully.'); setTimeout(() => setActionSuccess(''), 4000); },
+    onError: (e: { response?: { data?: { detail?: string } } }) =>
+      setActionError(e.response?.data?.detail ?? 'Failed to resend invite'),
+  });
+
   const addAdminMutation = useMutation({
-    mutationFn: () => membersApi.create({ membershipType: 'Member', ...adminForm, phoneNumber: adminForm.phoneNumber || null, groupId: id }),
+    mutationFn: async () => {
+      const { id: memberId } = await membersApi.create({ membershipType: 'Member', ...adminForm, phoneNumber: adminForm.phoneNumber || null, groupId: id });
+      await membersApi.assignAdmin(memberId);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['members', id, 'withAdmins'] });
       qc.invalidateQueries({ queryKey: ['group', id] });
@@ -81,6 +186,9 @@ export default function GroupDetail() {
         description: group.description,
         memberInterestRate: group.memberInterestRate,
         nonMemberInterestRate: group.nonMemberInterestRate,
+        isActive: group.isActive,
+        validFrom: group.validFrom ?? null,
+        validTo: group.validTo ?? null,
       });
       setEditError('');
       setShowEdit(true);
@@ -121,6 +229,11 @@ export default function GroupDetail() {
             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${group.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
               {group.isActive ? 'Active' : 'Inactive'}
             </span>
+            {isSuperAdmin && group.validFrom && (
+              <span className="text-xs text-gray-400">
+                {formatDate(group.validFrom)} — {group.validTo ? formatDate(group.validTo) : 'no end date'}
+              </span>
+            )}
           </div>
           {group.description && <p className="text-sm text-gray-500 mt-0.5">{group.description}</p>}
         </div>
@@ -130,6 +243,19 @@ export default function GroupDetail() {
         >
           Edit Group
         </button>
+        {isSuperAdmin && (
+          <button
+            onClick={() => setValidityMutation.mutate({ isActive: !group.isActive, validFrom: group.validFrom, validTo: group.validTo })}
+            disabled={setValidityMutation.isPending}
+            className={`px-4 py-2 text-sm font-medium rounded-lg disabled:opacity-60 ${
+              group.isActive
+                ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+            }`}
+          >
+            {group.isActive ? 'Disable Group' : 'Enable Group'}
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -152,8 +278,21 @@ export default function GroupDetail() {
         </div>
       </div>
 
+
       {/* Members Table */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+        {actionError && (
+          <div className="mx-5 mt-4 px-3 py-2 bg-red-50 border border-red-100 rounded-lg text-xs text-red-600 flex justify-between">
+            {actionError}
+            <button onClick={() => setActionError('')} className="ml-2 font-bold">×</button>
+          </div>
+        )}
+        {actionSuccess && (
+          <div className="mx-5 mt-4 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg text-xs text-emerald-700 flex justify-between">
+            {actionSuccess}
+            <button onClick={() => setActionSuccess('')} className="ml-2 font-bold">×</button>
+          </div>
+        )}
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
             <h2 className="font-semibold text-gray-800">Members</h2>
@@ -214,39 +353,18 @@ export default function GroupDetail() {
                     <td className="px-5 py-3 text-gray-500">{formatDate(m.createdAt)}</td>
                     <td className="px-5 py-3">
                       {m.role === 'Admin' && (
-                        <button
-                          onClick={() => setEditAdmin({ id: m.id, firstName: m.firstName, lastName: m.lastName ?? '', email: m.email ?? '' })}
-                          className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                        >
-                          Edit
-                        </button>
+                        <ActionMenu items={[
+                          { label: 'Edit', onClick: () => setEditAdmin({ id: m.id, firstName: m.firstName, lastName: m.lastName ?? '', email: m.email ?? '' }) },
+                          ...(!m.hasAccount ? [{ label: 'Resend Invite', onClick: () => resendInviteMutation.mutate(m.id), disabled: resendInviteMutation.isPending }] : []),
+                          { label: 'Remove Admin', onClick: () => removeAdminMutation.mutate(m.id), danger: true, disabled: removeAdminMutation.isPending },
+                        ]} />
                       )}
                       {m.role === 'Member' && (
-                        confirmDelete === m.id ? (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-500">Make admin?</span>
-                            <button
-                              onClick={() => { assignAdminMutation.mutate(m.id); setConfirmDelete(null); }}
-                              disabled={assignAdminMutation.isPending}
-                              className="text-xs text-purple-600 hover:text-purple-700 font-medium"
-                            >
-                              Confirm
-                            </button>
-                            <button
-                              onClick={() => setConfirmDelete(null)}
-                              className="text-xs text-gray-400 hover:text-gray-600"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setConfirmDelete(m.id)}
-                            className="text-xs text-purple-600 hover:text-purple-700 font-medium"
-                          >
-                            Make Admin
-                          </button>
-                        )
+                        <ActionMenu items={[
+                          { label: 'Edit', onClick: () => setEditAdmin({ id: m.id, firstName: m.firstName, lastName: m.lastName ?? '', email: m.email ?? '' }) },
+                          ...(!m.hasAccount ? [{ label: 'Resend Invite', onClick: () => resendInviteMutation.mutate(m.id), disabled: resendInviteMutation.isPending }] : []),
+                          { label: 'Make Admin', onClick: () => assignAdminMutation.mutate(m.id), disabled: assignAdminMutation.isPending },
+                        ]} />
                       )}
                     </td>
                   </tr>
@@ -298,7 +416,7 @@ export default function GroupDetail() {
       {editAdmin && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Edit Group Admin</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Edit Member</h2>
             {editAdminError && <p className="text-red-600 text-sm mb-3 bg-red-50 p-2 rounded">{editAdminError}</p>}
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -334,8 +452,9 @@ export default function GroupDetail() {
             {editError && <p className="text-red-600 text-sm mb-3">{editError}</p>}
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-600 font-medium">Group Name</label>
+                <label className="text-xs text-gray-600 font-medium">Group Name <span className="text-red-500">*</span></label>
                 <input
+                  required
                   value={editForm.name ?? ''}
                   onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
                   className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
@@ -352,26 +471,53 @@ export default function GroupDetail() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-600 font-medium">Member Interest (%)</label>
+                  <label className="text-xs text-gray-600 font-medium">Member Interest (%) <span className="text-red-500">*</span></label>
                   <input
                     type="number"
                     step="0.1"
+                    required
                     value={editForm.memberInterestRate ?? ''}
                     onChange={e => setEditForm(f => ({ ...f, memberInterestRate: Number(e.target.value) }))}
                     className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-600 font-medium">Non-Member Interest (%)</label>
+                  <label className="text-xs text-gray-600 font-medium">Non-Member Interest (%) <span className="text-red-500">*</span></label>
                   <input
                     type="number"
                     step="0.1"
+                    required
                     value={editForm.nonMemberInterestRate ?? ''}
                     onChange={e => setEditForm(f => ({ ...f, nonMemberInterestRate: Number(e.target.value) }))}
                     className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                   />
                 </div>
               </div>
+              {isSuperAdmin && (
+                <div className="pt-2 border-t border-gray-100">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-600 font-medium">Valid From <span className="text-red-500">*</span></label>
+                      <input
+                        type="date"
+                        required
+                        value={editForm.validFrom ? editForm.validFrom.split('T')[0] : ''}
+                        onChange={e => setEditForm(f => ({ ...f, validFrom: e.target.value || null }))}
+                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600 font-medium">Valid To</label>
+                      <input
+                        type="date"
+                        value={editForm.validTo ? editForm.validTo.split('T')[0] : ''}
+                        onChange={e => setEditForm(f => ({ ...f, validTo: e.target.value || null }))}
+                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex gap-3 mt-5">
               <button
@@ -382,8 +528,14 @@ export default function GroupDetail() {
               </button>
               <button
                 onClick={() => updateMutation.mutate()}
-                disabled={updateMutation.isPending}
-                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-60"
+                disabled={
+                  updateMutation.isPending ||
+                  !editForm.name?.trim() ||
+                  editForm.memberInterestRate == null ||
+                  editForm.nonMemberInterestRate == null ||
+                  (isSuperAdmin && !editForm.validFrom)
+                }
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
               </button>

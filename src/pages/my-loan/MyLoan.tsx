@@ -6,8 +6,10 @@ import { formatCurrency, formatDate } from '../../utils/format';
 export default function MyLoan() {
   const { user } = useAuth();
   const { data: loans, isLoading } = useQuery({
-    queryKey: ['my-loans', user?.id],
-    queryFn: () => loansApi.getAll({ borrowerId: user?.id }),
+    queryKey: ['my-loans', user?.memberId],
+    queryFn: () => loansApi.getAll({ borrowerId: user?.memberId }),
+    // Without a member id the API would return every loan in the group.
+    enabled: !!user?.memberId,
   });
 
   const activeLoan = loans?.find(l => l.status === 'Active');
