@@ -9,7 +9,7 @@ export default function Verify() {
   const qc = useQueryClient();
 
   const { data: pendingDeposits } = useQuery({
-    queryKey: ["deposits", user?.groupId, "pending"],
+    queryKey: ["deposits", user?.activeGroupId, "pending"],
     queryFn: () =>
       depositsApi.getDeposits({ isVerified: false }),
   });

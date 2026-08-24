@@ -42,9 +42,9 @@ export default function MembersTable({ members }: MembersTableProps) {
                 <td className="px-5 py-3 text-gray-500">{m.email}</td>
                 <td className="px-5 py-3">
                   <span
-                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${m.role === "Admin" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}
+                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${m.groupRole === "Admin" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}
                   >
-                    {m.role}
+                    {m.groupRole}
                   </span>
                 </td>
                 <td className="px-5 py-3">

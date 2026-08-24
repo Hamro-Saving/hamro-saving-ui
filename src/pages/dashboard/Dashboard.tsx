@@ -15,9 +15,9 @@ import GroupSettingsModal, { type GroupFormValues } from "./GroupSettingsModal";
 type ApiError = { response?: { data?: { detail?: string } } };
 
 export default function Dashboard() {
-  const { user, isRole } = useAuth();
-  const isAdmin = isRole("Admin");
-  const groupId = user?.groupId;
+  const { user, isGroupAdmin } = useAuth();
+  const isAdmin = isGroupAdmin;
+  const groupId = user?.activeGroupId;
   const qc = useQueryClient();
 
   const [showGroupEdit, setShowGroupEdit] = useState(false);
@@ -44,10 +44,9 @@ export default function Dashboard() {
   const addMemberMutation = useMutation({
     mutationFn: (form: MemberFormValues) =>
       membersApi.create({
-        membershipType: "Member",
+        groupRole: "Member",
         ...form,
         phoneNumber: form.phoneNumber || null,
-        groupId,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["members", groupId] });

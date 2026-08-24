@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Group, Member, MembershipType } from './types';
+import type { Group, GroupRole, Member } from './types';
 
 export const groupsApi = {
   getAll: () => apiClient.get<Group[]>('/groups').then(r => r.data),
@@ -14,11 +14,11 @@ export const groupsApi = {
 };
 
 export const membersApi = {
-  getAll: (params?: { groupId?: string; includeAdmins?: boolean; membershipType?: MembershipType }) =>
+  getAll: (params?: { groupId?: string; roles?: GroupRole[] }) =>
     apiClient.get<Member[]>('/members', { params }).then(r => r.data),
   getById: (id: string) => apiClient.get<Member>(`/members/${id}`).then(r => r.data),
   create: (body: {
-    membershipType: MembershipType;
+    groupRole: GroupRole;
     firstName: string;
     lastName?: string | null;
     email?: string | null;
@@ -32,7 +32,6 @@ export const membersApi = {
     email?: string | null;
     phoneNumber?: string | null;
     address?: string | null;
-    role: string;
   }) => apiClient.put<Member>(`/members/${id}`, body).then(r => r.data),
   deactivate: (id: string) => apiClient.put(`/members/${id}/deactivate`),
   delete: (id: string) => apiClient.delete(`/members/${id}`),

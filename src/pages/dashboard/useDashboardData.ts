@@ -23,7 +23,7 @@ export function useDashboardData(groupId?: string) {
   });
   const { data: members } = useQuery({
     queryKey: ["members", groupId],
-    queryFn: () => membersApi.getAll(),
+    queryFn: () => membersApi.getAll({ roles: ['Member', 'Admin'] }),
     enabled: !!groupId,
   });
 

@@ -12,10 +12,10 @@ import RecordPaymentModal from './RecordPaymentModal';
 import type { BorrowerType, Loan } from '../../api/types';
 
 export default function Loans() {
-  const { user, isRole } = useAuth();
+  const { user, isGroupAdmin } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const isAdmin = isRole('Admin', 'SuperAdmin');
+  const isAdmin = isGroupAdmin;
 
   const [showAdd, setShowAdd] = useState(false);
   const [applyForSelf, setApplyForSelf] = useState(false);
@@ -35,11 +35,11 @@ export default function Loans() {
   };
 
   const { data: loans, isLoading } = useQuery({
-    queryKey: ['loans', user?.groupId, filterStatus],
+    queryKey: ['loans', user?.activeGroupId, filterStatus],
     queryFn: () => loansApi.getAll({ status: filterStatus || undefined }),
   });
-  const { data: members } = useQuery({ queryKey: ['members', user?.groupId], queryFn: () => membersApi.getAll() });
-  const { data: nonMembers } = useQuery({ queryKey: ['non-members', user?.groupId], queryFn: () => membersApi.getAll({ membershipType: 'NonMember' }) });
+  const { data: members } = useQuery({ queryKey: ['members', user?.activeGroupId], queryFn: () => membersApi.getAll({ roles: ['Member', 'Admin'] }) });
+  const { data: nonMembers } = useQuery({ queryKey: ['non-members', user?.activeGroupId], queryFn: () => membersApi.getAll({ roles: ['NonMember'] }) });
 
   const invalidateLoans = () => {
     qc.invalidateQueries({ queryKey: ['loans'] });
@@ -82,7 +82,7 @@ export default function Loans() {
             New Loan
           </Button>
         )}
-        {isRole('Member') && (
+        {!isAdmin && (
           <Button variant="primary" onClick={() => openApply(true)}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             Apply for Loan

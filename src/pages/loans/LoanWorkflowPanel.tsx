@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { participates } from '../../api/types';
 import Button from '../../components/Button';
 import { useLoanActions } from './useLoanActions';
 import type { Loan } from '../../api/types';
@@ -9,17 +10,17 @@ import type { Loan } from '../../api/types';
  * members approve or decline, admins disburse or cancel.
  */
 export default function LoanWorkflowPanel({ loan }: { loan: Loan }) {
-  const { user, isRole } = useAuth();
+  const { user, isGroupAdmin } = useAuth();
   const { approve, decline, completeDisbursement, cancel, busy } = useLoanActions(loan.id);
   const [confirmAction, setConfirmAction] = useState<'decline' | 'cancel' | null>(null);
 
   if (loan.status !== 'Pending' && loan.status !== 'Approved') return null;
 
-  const isAdmin = isRole('Admin', 'SuperAdmin');
+  const isAdmin = isGroupAdmin;
   const isBorrower = loan.borrowerId === user?.memberId;
   const hasVoted = loan.hasCurrentUserApproved || loan.hasCurrentUserDeclined;
   // Approval is the members' call: admins never vote, and non-members can't either.
-  const isVoter = !isAdmin && user?.membershipType === 'Member';
+  const isVoter = participates(user?.groupRole);
   const canVote = loan.status === 'Pending' && isVoter && !isBorrower && !hasVoted;
   const canComplete = loan.status === 'Approved' && isAdmin;
   const canCancel = isAdmin;

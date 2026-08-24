@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { getDefaultRoute } from './routes';
 import Sidebar from './components/Sidebar';
 import Login from './pages/login/Login';
 import Signup from './pages/signup/Signup';
@@ -30,10 +31,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
 function HomeRedirect() {
   const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
-  if (user.membershipType === 'NonMember') return <Navigate to="/my-loan" replace />;
-  if (user.role === 'SuperAdmin') return <Navigate to="/overview" replace />;
-  return <Navigate to="/dashboard" replace />;
+  return <Navigate to={getDefaultRoute(user)} replace />;
 }
 
 export default function App() {
@@ -44,67 +42,67 @@ export default function App() {
       <Route path="/" element={<HomeRedirect />} />
 
       <Route path="/my-loan" element={
-        <ProtectedRoute allowedMembershipTypes={['NonMember']}>
+        <ProtectedRoute requires="nonMember">
           <MyLoan />
         </ProtectedRoute>
       } />
 
       <Route path="/overview" element={
-        <ProtectedRoute allowedRoles={['SuperAdmin']}>
+        <ProtectedRoute requires="superAdmin">
           <AppLayout><SuperAdminDashboard /></AppLayout>
         </ProtectedRoute>
       } />
 
       <Route path="/dashboard" element={
-        <ProtectedRoute allowedRoles={['Admin', 'Member']}>
+        <ProtectedRoute requires="groupMember">
           <AppLayout><Dashboard /></AppLayout>
         </ProtectedRoute>
       } />
 
       <Route path="/members" element={
-        <ProtectedRoute allowedRoles={['Admin', 'Member']}>
+        <ProtectedRoute requires="groupMember">
           <AppLayout><Members /></AppLayout>
         </ProtectedRoute>
       } />
 
       <Route path="/savings" element={
-        <ProtectedRoute allowedRoles={['Admin', 'Member']}>
+        <ProtectedRoute requires="groupMember">
           <AppLayout><Savings /></AppLayout>
         </ProtectedRoute>
       } />
 
       <Route path="/loans" element={
-        <ProtectedRoute allowedRoles={['Admin', 'Member']}>
+        <ProtectedRoute requires="groupMember">
           <AppLayout><Loans /></AppLayout>
         </ProtectedRoute>
       } />
 
       <Route path="/loans/:id" element={
-        <ProtectedRoute allowedRoles={['Admin', 'Member']}>
+        <ProtectedRoute requires="groupMember">
           <AppLayout><LoanDetail /></AppLayout>
         </ProtectedRoute>
       } />
 
       <Route path="/finance" element={
-        <ProtectedRoute allowedRoles={['Admin']}>
+        <ProtectedRoute requires="groupAdmin">
           <AppLayout><Finance /></AppLayout>
         </ProtectedRoute>
       } />
 
       <Route path="/verify" element={
-        <ProtectedRoute allowedRoles={['Admin']}>
+        <ProtectedRoute requires="groupAdmin">
           <AppLayout><Verify /></AppLayout>
         </ProtectedRoute>
       } />
 
       <Route path="/groups" element={
-        <ProtectedRoute allowedRoles={['SuperAdmin']}>
+        <ProtectedRoute requires="superAdmin">
           <AppLayout><Groups /></AppLayout>
         </ProtectedRoute>
       } />
 
       <Route path="/groups/:id" element={
-        <ProtectedRoute allowedRoles={['SuperAdmin']}>
+        <ProtectedRoute requires="superAdmin">
           <AppLayout><GroupDetail /></AppLayout>
         </ProtectedRoute>
       } />

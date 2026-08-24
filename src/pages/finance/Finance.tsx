@@ -56,11 +56,11 @@ export default function Finance() {
   const [withdrawError, setWithdrawError] = useState('');
 
   const { data: expenses, isLoading: expensesLoading } = useQuery({
-    queryKey: ['expenses', user?.groupId],
+    queryKey: ['expenses', user?.activeGroupId],
     queryFn: () => financeApi.getExpenses(),
   });
   const { data: fds, isLoading: fdsLoading } = useQuery({
-    queryKey: ['fixed-deposits', user?.groupId],
+    queryKey: ['fixed-deposits', user?.activeGroupId],
     queryFn: () => financeApi.getFixedDeposits(),
   });
 

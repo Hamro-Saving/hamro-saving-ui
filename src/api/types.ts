@@ -1,17 +1,44 @@
 export interface LoginRequest { email: string; password: string; }
 export interface SignupInfoResponse { email: string; firstName: string; lastName: string; fullName: string; }
 
-export interface RegisterRequest { email: string; password: string; firstName: string; lastName: string; role: UserRole; groupId?: string; }
+export interface SwitchGroupRequest { groupId: string; }
 
-export type UserRole = 'SuperAdmin' | 'Admin' | 'Member';
+/**
+ * What a person is inside one group — the single group-level axis, orthogonal to the
+ * platform SuperAdmin flag. A NonMember borrows from the group without taking part in it.
+ */
+export type GroupRole = 'Admin' | 'Member' | 'NonMember';
 
-export interface AuthUser { id: string; email: string; firstName: string; lastName: string; role: UserRole; groupId?: string; memberId?: string; membershipType?: MembershipType; }
+/** Members and admins take part in the group; non-members only borrow from it. */
+export const participates = (role?: GroupRole) => role === 'Admin' || role === 'Member';
+
+/** One group a person belongs to, carried in the token so the switcher needs no round trip. */
+export interface Membership {
+  groupId: string;
+  groupName: string;
+  memberId: string;
+  groupRole: GroupRole;
+}
+
+/**
+ * Two independent axes: `isSuperAdmin` is about the platform and says nothing about any group;
+ * the active* fields describe the one group being acted in right now.
+ */
+export interface AuthUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  isSuperAdmin: boolean;
+  activeGroupId?: string;
+  memberId?: string;
+  groupRole?: GroupRole;
+  memberships: Membership[];
+}
 
 export interface Group { id: string; name: string; code: string; description?: string; isActive: boolean; memberInterestRate: number; nonMemberInterestRate: number; validFrom?: string | null; validTo?: string | null; memberCount: number; createdAt: string; updatedAt: string; }
 
-export type MembershipType = 'Member' | 'NonMember';
-
-export interface Member { id: string; email?: string | null; firstName: string; lastName?: string | null; fullName: string; role: UserRole; membershipType: MembershipType; groupId: string; isActive: boolean; hasAccount: boolean; phoneNumber?: string | null; address?: string | null; createdAt: string; }
+export interface Member { id: string; email?: string | null; firstName: string; lastName?: string | null; fullName: string; groupRole: GroupRole; groupId: string; isActive: boolean; hasAccount: boolean; phoneNumber?: string | null; address?: string | null; createdAt: string; }
 
 export type DepositType = 'MonthlyDeposit' | 'InterestPayment' | 'LoanRepayment' | 'Other';
 

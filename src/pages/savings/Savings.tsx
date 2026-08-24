@@ -44,7 +44,7 @@ function getFormErrors(form: {
 }
 
 export default function Savings() {
-  const { user, isRole } = useAuth();
+  const { user, isGroupAdmin } = useAuth();
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [editDeposit, setEditDeposit] = useState<{ id: string; amount: string; notes: string } | null>(null);
@@ -73,7 +73,7 @@ export default function Savings() {
   }
 
   const { data: deposits, isLoading } = useQuery({
-    queryKey: ["deposits", user?.groupId, filterMonth, filterVerified],
+    queryKey: ["deposits", user?.activeGroupId, filterMonth, filterVerified],
     queryFn: () =>
       depositsApi.getDeposits({
         month: filterMonth ? Number(filterMonth) : undefined,
@@ -82,8 +82,8 @@ export default function Savings() {
       }),
   });
   const { data: members } = useQuery({
-    queryKey: ["members", user?.groupId],
-    queryFn: () => membersApi.getAll(),
+    queryKey: ["members", user?.activeGroupId],
+    queryFn: () => membersApi.getAll({ roles: ['Member', 'Admin'] }),
   });
 
   const addMutation = useMutation({
@@ -196,7 +196,7 @@ export default function Savings() {
               Record Deposit
             </h2>
             <div className="space-y-3">
-              {isRole("Admin", "SuperAdmin") && (
+              {isGroupAdmin && (
                 <div>
                   <label className="text-xs text-gray-600 font-medium">
                     Member
@@ -466,7 +466,7 @@ export default function Savings() {
                 </td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center gap-2">
-                    {!d.isVerified && isRole("Admin", "SuperAdmin") && (
+                    {!d.isVerified && isGroupAdmin && (
                       <Button
                         variant="primary"
                         size="sm"
@@ -475,7 +475,7 @@ export default function Savings() {
                         Verify
                       </Button>
                     )}
-                    {!d.isVerified && (isRole("Admin", "SuperAdmin") || d.memberId === user?.memberId) && (
+                    {!d.isVerified && (isGroupAdmin || d.memberId === user?.memberId) && (
                       <Button
                         size="sm"
                         onClick={() => setEditDeposit({ id: d.id, amount: String(d.amount), notes: d.notes ?? "" })}

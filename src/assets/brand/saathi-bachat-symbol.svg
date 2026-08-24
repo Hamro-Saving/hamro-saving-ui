@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" width="140" height="140" role="img" aria-label="Saathi Bachat">
+  <title>Saathi Bachat</title>
+  <circle cx="70" cy="18" r="11" fill="#C8322B"></circle>
+  <circle cx="115" cy="44" r="11" fill="#1B3A8F"></circle>
+  <circle cx="115" cy="96" r="11" fill="#1B3A8F"></circle>
+  <circle cx="70" cy="122" r="11" fill="#1B3A8F"></circle>
+  <circle cx="25" cy="96" r="11" fill="#1B3A8F"></circle>
+  <circle cx="25" cy="44" r="11" fill="#1B3A8F"></circle>
+  <circle cx="70" cy="70" r="18.5" fill="none" stroke="#1B3A8F" stroke-width="3"></circle>
+  <text x="70" y="70" fill="#1B3A8F" font-family="Source Sans 3, Source Sans Pro, Helvetica Neue, Helvetica, Arial, sans-serif" font-size="24" font-weight="600" text-anchor="middle" dominant-baseline="central">$</text>
+</svg>

@@ -9,8 +9,7 @@ import type { Group } from '../../api/types';
 export default function Groups() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { isRole } = useAuth();
-  const isSuperAdmin = isRole('SuperAdmin');
+  const { isSuperAdmin } = useAuth();
 
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState({ name: '', code: '', description: '', memberInterestRate: '10', nonMemberInterestRate: '18', validFrom: '', validTo: '' });

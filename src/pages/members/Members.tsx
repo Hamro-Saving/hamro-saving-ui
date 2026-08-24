@@ -1,30 +1,29 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { membersApi, groupsApi } from '../../api/groups';
+import { membersApi } from '../../api/groups';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
-import { formatDate } from '../../utils/format';
-import type { Member, UserRole } from '../../api/types';
+import MemberTable from './MemberTable';
+import type { GroupRole, Member } from '../../api/types';
 
 type Tab = 'members' | 'non-members';
 
 export default function Members() {
-  const { user, isRole } = useAuth();
-  const isSuperAdmin = isRole('SuperAdmin');
-  const isAdmin = isRole('Admin');
-  const canEdit = isAdmin || isSuperAdmin;
+  const { user, isGroupAdmin } = useAuth();
+  // Editing the roster is group business, so it is the group role that decides.
+  const canEdit = isGroupAdmin;
   const qc = useQueryClient();
 
   const [tab, setTab] = useState<Tab>('members');
 
   // Add member state
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ firstName: '', lastName: '', email: '', phoneNumber: '', groupId: '' });
+  const [addForm, setAddForm] = useState({ firstName: '', lastName: '', email: '', phoneNumber: '', address: '' });
   const [addError, setAddError] = useState('');
 
   // Edit member state
   const [editMember, setEditMember] = useState<Member | null>(null);
-  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', phoneNumber: '', role: 'Member' });
+  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', phoneNumber: '', address: '', groupRole: 'Member' as GroupRole });
   const [editError, setEditError] = useState('');
 
   // Delete member state
@@ -43,44 +42,66 @@ export default function Members() {
   // Delete non-member state
   const [deleteNmId, setDeleteNmId] = useState<string | null>(null);
 
-  const { data: groups } = useQuery({ queryKey: ['groups'], queryFn: groupsApi.getAll, enabled: isSuperAdmin });
-
   const { data: members = [], isLoading: membersLoading } = useQuery({
-    queryKey: ['members', user?.groupId],
-    queryFn: () => membersApi.getAll({ membershipType: 'Member' }),
+    queryKey: ['members', user?.activeGroupId],
+    queryFn: () => membersApi.getAll({ roles: ['Member', 'Admin'] }),
   });
 
   const { data: nonMembers = [], isLoading: nmLoading } = useQuery({
-    queryKey: ['non-members', user?.groupId],
-    queryFn: () => membersApi.getAll({ membershipType: 'NonMember' }),
+    queryKey: ['non-members', user?.activeGroupId],
+    queryFn: () => membersApi.getAll({ roles: ['NonMember'] }),
     enabled: tab === 'non-members' || canEdit,
   });
 
   // Member mutations
   const addMutation = useMutation({
     mutationFn: () => membersApi.create({
-      membershipType: 'Member',
+      groupRole: 'Member',
       firstName: addForm.firstName,
       lastName: addForm.lastName,
       email: addForm.email,
       phoneNumber: addForm.phoneNumber || null,
-      // Only a SuperAdmin names a group; for an admin the API takes it from the token
-      groupId: isSuperAdmin ? addForm.groupId : undefined,
+      address: addForm.address || null,
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['members'] }); setShowAdd(false); setAddForm({ firstName: '', lastName: '', email: '', phoneNumber: '', groupId: '' }); setAddError(''); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['members'] }); setShowAdd(false); setAddForm({ firstName: '', lastName: '', email: '', phoneNumber: '', address: '' }); setAddError(''); },
     onError: (e: { response?: { data?: { detail?: string } } }) => setAddError(e.response?.data?.detail ?? 'Failed to add member'),
   });
 
   const editMutation = useMutation({
-    mutationFn: () => membersApi.update(editMember!.id, {
-      firstName: editForm.firstName,
-      lastName: editForm.lastName || null,
-      email: editForm.email || null,
-      phoneNumber: editForm.phoneNumber || null,
-      role: editForm.role as UserRole,
-    }),
+    mutationFn: async () => {
+      await membersApi.update(editMember!.id, {
+        firstName: editForm.firstName,
+        lastName: editForm.lastName || null,
+        email: editForm.email || null,
+        phoneNumber: editForm.phoneNumber || null,
+        address: editForm.address || null,
+      });
+      // The group role has its own endpoints; a profile update never carries it.
+      if (editForm.groupRole !== editMember!.groupRole) {
+        await (editForm.groupRole === 'Admin'
+          ? membersApi.assignAdmin(editMember!.id)
+          : membersApi.removeAdmin(editMember!.id));
+      }
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['members'] }); setEditMember(null); setEditError(''); },
     onError: (e: { response?: { data?: { detail?: string } } }) => setEditError(e.response?.data?.detail ?? 'Failed to update member'),
+  });
+
+  // Shared by both tabs: anyone with an email but no account yet can be re-invited.
+  // A row action has no modal to report into, so the outcome goes to a page banner —
+  // otherwise a failed send looks identical to nothing happening.
+  const [resendNotice, setResendNotice] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const resendMutation = useMutation({
+    mutationFn: (id: string) => membersApi.resendInvite(id),
+    onSuccess: (_data, id) => {
+      const name = [...members, ...nonMembers].find(m => m.id === id)?.fullName ?? 'the member';
+      setResendNotice({ ok: true, text: `Invite email sent to ${name}.` });
+      qc.invalidateQueries({ queryKey: ['members'] });
+      qc.invalidateQueries({ queryKey: ['non-members'] });
+    },
+    onError: (e: { response?: { data?: { detail?: string } } }) =>
+      setResendNotice({ ok: false, text: e.response?.data?.detail ?? 'Could not resend the invite.' }),
   });
 
   const deleteMutation = useMutation({
@@ -91,12 +112,12 @@ export default function Members() {
   // Non-member mutations
   const addNmMutation = useMutation({
     mutationFn: () => membersApi.create({
-      membershipType: 'NonMember',
+      groupRole: 'NonMember',
       firstName: addNmForm.fullName,
       email: addNmForm.email || null,
       phoneNumber: addNmForm.phoneNumber || null,
       address: addNmForm.address || null,
-      groupId: user?.groupId,
+      groupId: user?.activeGroupId,
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['non-members'] }); setShowAddNm(false); setAddNmForm({ fullName: '', email: '', phoneNumber: '', address: '' }); setAddNmError(''); },
     onError: (e: { response?: { data?: { detail?: string } } }) => setAddNmError(e.response?.data?.detail ?? 'Failed to add non-member'),
@@ -108,7 +129,6 @@ export default function Members() {
       email: editNmForm.email || null,
       phoneNumber: editNmForm.phoneNumber || null,
       address: editNmForm.address || null,
-      role: 'Member',
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['non-members'] }); setEditNm(null); setEditNmError(''); },
     onError: (e: { response?: { data?: { detail?: string } } }) => setEditNmError(e.response?.data?.detail ?? 'Failed to update non-member'),
@@ -119,7 +139,7 @@ export default function Members() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['non-members'] }); setDeleteNmId(null); },
   });
 
-  const openEditMember = (m: Member) => { setEditMember(m); setEditForm({ firstName: m.firstName, lastName: m.lastName ?? '', email: m.email ?? '', phoneNumber: m.phoneNumber ?? '', role: m.role }); setEditError(''); };
+  const openEditMember = (m: Member) => { setEditMember(m); setEditForm({ firstName: m.firstName, lastName: m.lastName ?? '', email: m.email ?? '', phoneNumber: m.phoneNumber ?? '', address: m.address ?? '', groupRole: m.groupRole }); setEditError(''); };
   const openEditNm = (n: Member) => { setEditNm(n); setEditNmForm({ fullName: n.firstName, email: n.email ?? '', phoneNumber: n.phoneNumber ?? '', address: n.address ?? '' }); setEditNmError(''); };
 
   return (
@@ -136,10 +156,17 @@ export default function Members() {
             onClick={() => tab === 'members' ? setShowAdd(true) : setShowAddNm(true)}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Add {tab === 'members' ? (isSuperAdmin ? 'Group Admin' : 'Member') : 'Non-Member'}
+            Add {tab === 'members' ? 'Member' : 'Non-Member'}
           </Button>
         )}
       </div>
+
+      {resendNotice && (
+        <div className={`flex items-start justify-between gap-3 rounded-lg px-4 py-3 text-sm ${resendNotice.ok ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+          <span>{resendNotice.text}</span>
+          <button onClick={() => setResendNotice(null)} className="text-current opacity-60 hover:opacity-100 leading-none" aria-label="Dismiss">×</button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2">
@@ -151,100 +178,37 @@ export default function Members() {
         </button>
       </div>
 
-      {/* Members Table */}
       {tab === 'members' && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                {['Name', 'Email', 'Role', 'Status', 'Joined', ...(canEdit ? ['Actions'] : [])].map(h => (
-                  <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {membersLoading && <tr><td colSpan={6} className="text-center py-10 text-gray-400">Loading...</td></tr>}
-              {members.map(m => (
-                <tr key={m.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-xs">{m.firstName?.[0]}{m.lastName?.[0]}</div>
-                      <span className="font-medium text-gray-800">{m.firstName} {m.lastName}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5 text-gray-600">{m.email}</td>
-                  <td className="px-5 py-3.5">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${m.role === 'Admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{m.role}</span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${m.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>{m.isActive ? 'Active' : 'Inactive'}</span>
-                      {!m.hasAccount && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Invite Pending</span>}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5 text-gray-500">{formatDate(m.createdAt)}</td>
-                  {canEdit && (
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <Button size="sm" onClick={() => openEditMember(m)}>Edit</Button>
-                        {m.isActive && (
-                          <Button size="sm" variant="danger" onClick={() => setDeleteMemberId(m.id)}>Delete</Button>
-                        )}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-              {!membersLoading && !members.length && <tr><td colSpan={6} className="text-center py-10 text-gray-400">No members found</td></tr>}
-            </tbody>
-          </table>
-        </div>
+        <MemberTable
+          rows={members}
+          loading={membersLoading}
+          canEdit={canEdit}
+          emptyLabel="No members found"
+          onEdit={openEditMember}
+          onDelete={m => setDeleteMemberId(m.id)}
+          onResend={r => resendMutation.mutate(r.id)}
+          resendingId={resendMutation.isPending ? resendMutation.variables : null}
+        />
       )}
 
-      {/* Non-Members Table */}
       {tab === 'non-members' && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                {['Full Name', 'Email', 'Phone', 'Status', ...(canEdit ? ['Actions'] : [])].map(h => (
-                  <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {nmLoading && <tr><td colSpan={5} className="text-center py-10 text-gray-400">Loading...</td></tr>}
-              {nonMembers.map(n => (
-                <tr key={n.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3.5 font-medium text-gray-800">{n.fullName}</td>
-                  <td className="px-5 py-3.5 text-gray-600">{n.email ?? '—'}</td>
-                  <td className="px-5 py-3.5 text-gray-600">{n.phoneNumber ?? '—'}</td>
-                  <td className="px-5 py-3.5">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${n.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>{n.isActive ? 'Active' : 'Inactive'}</span>
-                  </td>
-                  {canEdit && (
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <Button size="sm" onClick={() => openEditNm(n)}>Edit</Button>
-                        {n.isActive && (
-                          <Button size="sm" variant="danger" onClick={() => setDeleteNmId(n.id)}>Delete</Button>
-                        )}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-              {!nmLoading && !nonMembers.length && <tr><td colSpan={5} className="text-center py-10 text-gray-400">No non-members found</td></tr>}
-            </tbody>
-          </table>
-        </div>
+        <MemberTable
+          rows={nonMembers}
+          loading={nmLoading}
+          canEdit={canEdit}
+          emptyLabel="No non-members found"
+          onEdit={openEditNm}
+          onDelete={n => setDeleteNmId(n.id)}
+          onResend={r => resendMutation.mutate(r.id)}
+          resendingId={resendMutation.isPending ? resendMutation.variables : null}
+        />
       )}
 
       {/* Add Member Modal */}
       {showAdd && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">{isSuperAdmin ? 'Add Group Admin' : 'Add New Member'}</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Add New Member</h2>
             {addError && <p className="text-red-600 text-sm mb-3 bg-red-50 p-2 rounded">{addError}</p>}
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -257,14 +221,9 @@ export default function Members() {
                 <input type="email" value={addForm.email} onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
               <div><label className="text-xs text-gray-600 font-medium">Phone (optional)</label>
                 <input value={addForm.phoneNumber} onChange={e => setAddForm(f => ({ ...f, phoneNumber: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="+977..." /></div>
+              <div><label className="text-xs text-gray-600 font-medium">Address (optional)</label>
+                <input value={addForm.address} onChange={e => setAddForm(f => ({ ...f, address: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
               <p className="text-xs text-gray-400">An invitation email will be sent so the member can set their own password.</p>
-              {isSuperAdmin && (
-                <div><label className="text-xs text-gray-600 font-medium">Group</label>
-                  <select value={addForm.groupId} onChange={e => setAddForm(f => ({ ...f, groupId: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                    <option value="">Select a group</option>
-                    {(groups ?? []).map(g => <option key={g.id} value={g.id}>{g.name} ({g.code})</option>)}
-                  </select></div>
-              )}
             </div>
             <div className="flex gap-3 mt-5">
               <Button className="flex-1" onClick={() => setShowAdd(false)}>Cancel</Button>
@@ -293,8 +252,10 @@ export default function Members() {
                 <input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
               <div><label className="text-xs text-gray-600 font-medium">Phone (optional)</label>
                 <input value={editForm.phoneNumber} onChange={e => setEditForm(f => ({ ...f, phoneNumber: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="+977..." /></div>
+              <div><label className="text-xs text-gray-600 font-medium">Address (optional)</label>
+                <input value={editForm.address} onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
               <div><label className="text-xs text-gray-600 font-medium">Role</label>
-                <select value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                <select value={editForm.groupRole} onChange={e => setEditForm(f => ({ ...f, groupRole: e.target.value as GroupRole }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                   <option value="Admin">Admin</option>
                   <option value="Member">Member</option>
                 </select></div>
@@ -340,6 +301,7 @@ export default function Members() {
                 <input value={addNmForm.phoneNumber} onChange={e => setAddNmForm(f => ({ ...f, phoneNumber: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
               <div><label className="text-xs text-gray-600 font-medium">Address (optional)</label>
                 <input value={addNmForm.address} onChange={e => setAddNmForm(f => ({ ...f, address: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+              <p className="text-xs text-gray-400">Give an email and they'll be invited to sign in and follow their own loan. Without one, they're recorded as a borrower with no account.</p>
             </div>
             <div className="flex gap-3 mt-5">
               <Button className="flex-1" onClick={() => setShowAddNm(false)}>Cancel</Button>

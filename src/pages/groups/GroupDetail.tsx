@@ -74,8 +74,7 @@ export default function GroupDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { isRole } = useAuth();
-  const isSuperAdmin = isRole('SuperAdmin');
+  const { isSuperAdmin } = useAuth();
 
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Group>>({});
@@ -96,7 +95,7 @@ export default function GroupDetail() {
 
   const { data: members = [], isLoading: membersLoading } = useQuery({
     queryKey: ['members', id, 'withAdmins'],
-    queryFn: () => membersApi.getAll({ groupId: id, includeAdmins: true }),
+    queryFn: () => membersApi.getAll({ groupId: id, roles: ['Member', 'Admin'] }),
     enabled: !!id,
   });
 
@@ -153,8 +152,9 @@ export default function GroupDetail() {
 
   const addAdminMutation = useMutation({
     mutationFn: async () => {
-      const { id: memberId } = await membersApi.create({ membershipType: 'Member', ...adminForm, phoneNumber: adminForm.phoneNumber || null, groupId: id });
-      await membersApi.assignAdmin(memberId);
+      // The group's first admin: created straight into the Admin role, which a
+      // SuperAdmin may do because the group has no admin of its own yet.
+      await membersApi.create({ ...adminForm, phoneNumber: adminForm.phoneNumber || null, groupId: id, groupRole: 'Admin' });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['members', id, 'withAdmins'] });
@@ -169,7 +169,7 @@ export default function GroupDetail() {
   });
 
   const updateAdminMutation = useMutation({
-    mutationFn: () => membersApi.update(editAdmin!.id, { firstName: editAdmin!.firstName, lastName: editAdmin!.lastName, email: editAdmin!.email, role: 'Admin' }),
+    mutationFn: () => membersApi.update(editAdmin!.id, { firstName: editAdmin!.firstName, lastName: editAdmin!.lastName, email: editAdmin!.email }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['members', id, 'withAdmins'] });
       setEditAdmin(null);
@@ -207,8 +207,8 @@ export default function GroupDetail() {
     );
   }
 
-  const adminCount = members.filter(m => m.role === 'Admin').length;
-  const memberCount = members.filter(m => m.role === 'Member').length;
+  const adminCount = members.filter(m => m.groupRole === 'Admin').length;
+  const memberCount = members.filter(m => m.groupRole === 'Member').length;
 
   return (
     <div className="p-6 space-y-6">
@@ -338,9 +338,9 @@ export default function GroupDetail() {
                     <td className="px-5 py-3 text-gray-500">{m.email}</td>
                     <td className="px-5 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        m.role === 'Admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
+                        m.groupRole === 'Admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
                       }`}>
-                        {m.role}
+                        {m.groupRole}
                       </span>
                     </td>
                     <td className="px-5 py-3">
@@ -352,14 +352,14 @@ export default function GroupDetail() {
                     </td>
                     <td className="px-5 py-3 text-gray-500">{formatDate(m.createdAt)}</td>
                     <td className="px-5 py-3">
-                      {m.role === 'Admin' && (
+                      {m.groupRole === 'Admin' && (
                         <ActionMenu items={[
                           { label: 'Edit', onClick: () => setEditAdmin({ id: m.id, firstName: m.firstName, lastName: m.lastName ?? '', email: m.email ?? '' }) },
                           ...(!m.hasAccount ? [{ label: 'Resend Invite', onClick: () => resendInviteMutation.mutate(m.id), disabled: resendInviteMutation.isPending }] : []),
                           { label: 'Remove Admin', onClick: () => removeAdminMutation.mutate(m.id), danger: true, disabled: removeAdminMutation.isPending },
                         ]} />
                       )}
-                      {m.role === 'Member' && (
+                      {m.groupRole === 'Member' && (
                         <ActionMenu items={[
                           { label: 'Edit', onClick: () => setEditAdmin({ id: m.id, firstName: m.firstName, lastName: m.lastName ?? '', email: m.email ?? '' }) },
                           ...(!m.hasAccount ? [{ label: 'Resend Invite', onClick: () => resendInviteMutation.mutate(m.id), disabled: resendInviteMutation.isPending }] : []),

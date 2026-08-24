@@ -1,14 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
 import { loansApi } from '../../api/finance';
 import { useAuth } from '../../context/AuthContext';
+import Button from '../../components/Button';
 import { formatCurrency, formatDate } from '../../utils/format';
 
 export default function MyLoan() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { data: loans, isLoading } = useQuery({
     queryKey: ['my-loans', user?.memberId],
     queryFn: () => loansApi.getAll({ borrowerId: user?.memberId }),
-    // Without a member id the API would return every loan in the group.
+    // The server scopes a non-member to their own loans regardless; this filter is
+    // just to avoid a pointless round trip before the member id is known.
     enabled: !!user?.memberId,
   });
 
@@ -20,13 +22,26 @@ export default function MyLoan() {
   });
 
   const totalPaid = activeLoan ? activeLoan.totalPrincipalPaid + activeLoan.totalInterestPaid : 0;
+  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email;
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-lg mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Loan</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Your current loan details</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">My Loan</h1>
+            <p className="text-gray-500 text-sm mt-0.5">Your current loan details</p>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="text-right hidden sm:block min-w-0">
+              <p className="text-sm font-medium text-gray-800 leading-tight truncate">{displayName}</p>
+              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+            </div>
+            <Button size="sm" onClick={logout}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+              Sign out
+            </Button>
+          </div>
         </div>
 
         {isLoading && <div className="bg-white rounded-xl p-10 text-center text-gray-400">Loading...</div>}

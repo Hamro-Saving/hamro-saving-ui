@@ -1,16 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { getDefaultRoute } from '../../routes';
+import Logo from '../../components/Logo';
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  function getDefaultRoute(role: string) {
-    if (role === 'SuperAdmin') return '/overview';
-    if (role === 'NonMember') return '/my-loan';
-    return '/dashboard';
-  }
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -22,7 +18,7 @@ export default function Login() {
     setLoading(true);
     try {
       const loggedInUser = await login(email, password);
-      navigate(getDefaultRoute(loggedInUser.role), { replace: true });
+      navigate(getDefaultRoute(loggedInUser), { replace: true });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setError(msg ?? 'Invalid email or password.');
@@ -36,13 +32,8 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 backdrop-blur rounded-2xl mb-4 shadow-lg">
-            <svg className="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold text-white">HamroSavings</h1>
-          <p className="text-blue-200 mt-1 text-sm">Group savings, simplified.</p>
+          <Logo variant="dark" size="md" className="justify-center" />
+          <p className="text-blue-200 mt-3 text-sm">Group savings, simplified.</p>
         </div>
 
         {/* Card */}

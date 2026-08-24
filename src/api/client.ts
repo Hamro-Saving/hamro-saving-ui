@@ -1,10 +1,14 @@
 import axios from 'axios';
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5000';
+const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:7000';
 
 export const apiClient = axios.create({
   baseURL: `${BASE_URL}/api/v1`,
   headers: { 'Content-Type': 'application/json' },
+  // Repeat array params as `roles=Member&roles=Admin`. Axios defaults to `roles[]=...`,
+  // which ASP.NET does not bind to a string[] — it silently sees no value at all, so a
+  // filtered request quietly comes back unfiltered rather than failing.
+  paramsSerializer: { indexes: null },
 });
 
 apiClient.interceptors.request.use((config) => {
@@ -18,7 +22,6 @@ apiClient.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('hs_token');
-      localStorage.removeItem('hs_user');
       window.location.href = '/login';
     }
     return Promise.reject(err);

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 19 296 100" width="296" height="100" role="img" aria-label="Saathi Bachat">
+  <title>Saathi Bachat</title>
+  <g transform="translate(4.48 21.4) scale(0.68)">
+  <circle cx="70" cy="18" r="11" fill="#E8952A"></circle>
+  <circle cx="115" cy="44" r="11" fill="#93A9E8"></circle>
+  <circle cx="115" cy="96" r="11" fill="#93A9E8"></circle>
+  <circle cx="70" cy="122" r="11" fill="#93A9E8"></circle>
+  <circle cx="25" cy="96" r="11" fill="#93A9E8"></circle>
+  <circle cx="25" cy="44" r="11" fill="#93A9E8"></circle>
+  <circle cx="70" cy="70" r="18.5" fill="none" stroke="#93A9E8" stroke-width="3"></circle>
+  <text x="70" y="70" fill="#93A9E8" font-family="Source Sans 3, Source Sans Pro, Helvetica Neue, Helvetica, Arial, sans-serif" font-size="24" font-weight="600" text-anchor="middle" dominant-baseline="central">$</text>
+  </g>
+  <text x="130" y="62" fill="#93A9E8" font-family="Source Sans 3, Source Sans Pro, Helvetica Neue, Helvetica, Arial, sans-serif" font-size="46" font-weight="600" letter-spacing="-1.1">Saathi</text>
+  <text x="130" y="108" fill="#FFFFFF" font-family="Source Sans 3, Source Sans Pro, Helvetica Neue, Helvetica, Arial, sans-serif" font-size="46" font-weight="300" letter-spacing="-0.9">Bachat</text>
+</svg>

@@ -24,8 +24,8 @@ function Stat({ label, value, sub, tone = 'default' }: { label: string; value: s
 export default function LoanDetail() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
-  const { isRole } = useAuth();
-  const isAdmin = isRole('Admin', 'SuperAdmin');
+  const { isGroupAdmin } = useAuth();
+  const isAdmin = isGroupAdmin;
   const [showPayment, setShowPayment] = useState(false);
 
   const { data: loan, isLoading, isError } = useQuery({

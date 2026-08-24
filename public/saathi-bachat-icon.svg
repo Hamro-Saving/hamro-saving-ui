@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Saathi Bachat app icon">
+  <title>Saathi Bachat app icon</title>
+  <rect width="512" height="512" rx="116" fill="#1B3A8F"></rect>
+  <g transform="translate(66 66) scale(2.7143)">
+    <circle cx="70" cy="18" r="11" fill="#E8952A"></circle>
+    <circle cx="115" cy="44" r="11" fill="#FFFFFF"></circle>
+    <circle cx="115" cy="96" r="11" fill="#FFFFFF"></circle>
+    <circle cx="70" cy="122" r="11" fill="#FFFFFF"></circle>
+    <circle cx="25" cy="96" r="11" fill="#FFFFFF"></circle>
+    <circle cx="25" cy="44" r="11" fill="#FFFFFF"></circle>
+    <circle cx="70" cy="70" r="20" fill="#FFFFFF"></circle>
+    <text x="70" y="70" fill="#1B3A8F" font-family="Source Sans 3, Source Sans Pro, Helvetica Neue, Helvetica, Arial, sans-serif" font-size="26" font-weight="700" text-anchor="middle" dominant-baseline="central">$</text>
+  </g>
+</svg>
