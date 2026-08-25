@@ -4,6 +4,9 @@ import { financeApi } from '../../api/finance';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
 import { formatCurrency, formatDate, todayIso } from '../../utils/format';
+import { lateJoinerInterestApi } from '../../api/finance';
+import Select from '../../components/Select';
+import { membersApi } from '../../api/groups';
 import type { FixedDeposit } from '../../api/types';
 import Amount from '../../components/Amount';
 
@@ -46,7 +49,13 @@ function FieldError({ message }: { message?: string }) {
 export default function Finance() {
   const { user, isGroupAdmin } = useAuth();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<'expenses' | 'fixed-deposits'>('expenses');
+  const [tab, setTab] = useState<'expenses' | 'fixed-deposits' | 'late-joiner'>('expenses');
+
+  // What a member who joined late paid to catch up. Income, so there is no cash limit
+  // on it — the group is receiving rather than committing.
+  const [ljForm, setLjForm] = useState({ memberId: '', amount: '', paidDate: todayIso(), notes: '' });
+  const [ljError, setLjError] = useState('');
+  const [showAddLj, setShowAddLj] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [expForm, setExpForm] = useState(emptyExpense);
   const [fdForm, setFdForm] = useState(emptyFd);
@@ -64,6 +73,14 @@ export default function Finance() {
     queryKey: ['fixed-deposits', user?.activeGroupId],
     queryFn: () => financeApi.getFixedDeposits(),
   });
+  const { data: lateJoiner, isLoading: ljLoading } = useQuery({
+    queryKey: ['late-joiner-interest', user?.activeGroupId],
+    queryFn: () => lateJoinerInterestApi.getAll(),
+  });
+  const { data: members } = useQuery({
+    queryKey: ['members', user?.activeGroupId],
+    queryFn: () => membersApi.getAll({ roles: ['Member', 'Admin'] }),
+  });
 
   const onSaved = (key: string) => {
     qc.invalidateQueries({ queryKey: [key] });
@@ -72,6 +89,24 @@ export default function Finance() {
   };
   const onFailed = (e: { response?: { data?: { detail?: string; title?: string } } }) =>
     setSaveError(e.response?.data?.detail ?? e.response?.data?.title ?? 'Could not save. Please try again.');
+
+  const ljMutation = useMutation({
+    mutationFn: () => lateJoinerInterestApi.record({
+      memberId: ljForm.memberId,
+      amount: Number(ljForm.amount),
+      paidDate: ljForm.paidDate,
+      notes: ljForm.notes || null,
+    }),
+    onSuccess: () => {
+      // Income, so it moves the summary, the ledger and the trial balance together.
+      for (const k of ['late-joiner-interest', 'finance-summary', 'transactions', 'trial-balance']) {
+        qc.invalidateQueries({ queryKey: [k] });
+      }
+      setShowAddLj(false);
+    },
+    onError: (e: { response?: { data?: { detail?: string } } }) =>
+      setLjError(e.response?.data?.detail ?? 'Could not record the interest'),
+  });
 
   const expMutation = useMutation({
     mutationFn: () => financeApi.createExpense({
@@ -118,6 +153,12 @@ export default function Finance() {
   };
 
   const openAdd = () => {
+    if (tab === 'late-joiner') {
+      setLjForm({ memberId: '', amount: '', paidDate: todayIso(), notes: '' });
+      setLjError('');
+      setShowAddLj(true);
+      return;
+    }
     setErrors({});
     setSaveError('');
     setShowAdd(true);
@@ -149,7 +190,7 @@ export default function Finance() {
         {isGroupAdmin && (
           <Button variant="primary" onClick={openAdd}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Add {tab === 'expenses' ? 'Expense' : 'Fixed Deposit'}
+            Add {tab === 'expenses' ? 'Expense' : tab === 'fixed-deposits' ? 'Fixed Deposit' : 'Interest'}
           </Button>
         )}
       </div>
@@ -160,6 +201,9 @@ export default function Finance() {
         </button>
         <button onClick={() => setTab('fixed-deposits')} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === 'fixed-deposits' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
           Fixed Deposits ({fds?.length ?? 0})
+        </button>
+        <button onClick={() => setTab('late-joiner')} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === 'late-joiner' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+          Late Joiner Interest ({lateJoiner?.length ?? 0})
         </button>
       </div>
 
@@ -392,6 +436,112 @@ export default function Finance() {
           ))}
           {fdsLoading && <div className="bg-white rounded-xl p-10 text-center text-gray-400 text-sm border border-gray-100">Loading...</div>}
           {!fdsLoading && !fds?.length && <div className="bg-white rounded-xl p-10 text-center text-gray-400 text-sm border border-gray-100">No fixed deposits</div>}
+        </div>
+      )}
+
+      {tab === 'late-joiner' && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 text-xs text-gray-500">
+            What members who joined after the group started paid to catch up. This is income
+            to the group, not savings owed back to them.
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  {['Member', 'Paid on', 'Note', 'Amount'].map((h, i) => (
+                    <th key={h} className={`px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap ${i === 3 ? 'text-right' : 'text-left'}`}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {ljLoading && (
+                  <tr><td colSpan={4} className="text-center py-10 text-gray-400">Loading...</td></tr>
+                )}
+                {!ljLoading && (lateJoiner ?? []).map(r => (
+                  <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-3.5 font-medium text-gray-800">{r.memberName}</td>
+                    <td className="px-5 py-3.5 text-gray-500 whitespace-nowrap">{formatDate(r.paidDate)}</td>
+                    <td className="px-5 py-3.5 text-gray-600">{r.notes || '—'}</td>
+                    <td className="px-5 py-3.5 text-right"><Amount value={r.amount} side="credit" /></td>
+                  </tr>
+                ))}
+                {!ljLoading && !lateJoiner?.length && (
+                  <tr><td colSpan={4} className="text-center py-10 text-gray-400">No late joiner interest recorded</td></tr>
+                )}
+                {!!lateJoiner?.length && (
+                  <tr className="bg-gray-50 font-semibold">
+                    <td className="px-5 py-3" colSpan={3}>Total</td>
+                    <td className="px-5 py-3 text-right">
+                      <Amount value={lateJoiner.reduce((sum, r) => sum + r.amount, 0)} side="credit" />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {showAddLj && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Record Late Joiner Interest</h2>
+            {ljError && <p className="text-red-600 text-sm mb-3 bg-red-50 p-2 rounded">{ljError}</p>}
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-600 font-medium">Member</label>
+                <Select
+                  value={ljForm.memberId}
+                  onChange={e => setLjForm(f => ({ ...f, memberId: e.target.value }))}
+                  className="mt-1 w-full"
+                >
+                  <option value="">Select a member</option>
+                  {(members ?? []).map(m => <option key={m.id} value={m.id}>{m.fullName}</option>)}
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 font-medium">Amount (NPR)</label>
+                <input
+                  type="number"
+                  value={ljForm.amount}
+                  onChange={e => setLjForm(f => ({ ...f, amount: e.target.value }))}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 font-medium">Paid on</label>
+                <input
+                  type="date"
+                  value={ljForm.paidDate}
+                  onChange={e => setLjForm(f => ({ ...f, paidDate: e.target.value }))}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 font-medium">Note (optional)</label>
+                <input
+                  value={ljForm.notes}
+                  onChange={e => setLjForm(f => ({ ...f, notes: e.target.value }))}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  placeholder="e.g. joined in Bhadra 2082"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <Button className="flex-1" onClick={() => setShowAddLj(false)}>Cancel</Button>
+              <Button
+                variant="primary"
+                className="flex-1"
+                disabled={ljMutation.isPending || !ljForm.memberId || !ljForm.amount}
+                onClick={() => { setLjError(''); ljMutation.mutate(); }}
+              >
+                {ljMutation.isPending ? 'Saving...' : 'Record'}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

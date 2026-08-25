@@ -1,6 +1,7 @@
 import type { Loan } from "../../api/types";
 import Amount from '../../components/Amount';
 import { loanAmountSide } from '../loans/loanMath';
+import { formatCurrency } from '../../utils/format';
 
 interface ActiveLoansCardProps {
   loans?: Loan[];
@@ -27,7 +28,14 @@ export default function ActiveLoansCard({ loans }: ActiveLoansCardProps) {
                 {loan.borrowerType} · {loan.interestRate}% interest
               </p>
             </div>
-            <Amount value={loan.amount} side={loanAmountSide(loan)} className="text-sm" />
+            <div className="text-right flex-shrink-0">
+              <Amount value={loan.outstandingPrincipal} side={loanAmountSide(loan)} className="text-sm" />
+              {loan.accruedInterest > 0 && (
+                <p className="text-[11px] leading-none text-gray-400 mt-1">
+                  + {formatCurrency(loan.accruedInterest)} interest
+                </p>
+              )}
+            </div>
           </div>
         ))}
         {!loans?.length && (

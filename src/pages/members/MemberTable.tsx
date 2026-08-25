@@ -98,7 +98,18 @@ export default function MemberTable({ rows, loading, canEdit, emptyLabel, onEdit
                 <td className="px-5 py-3.5">
                   {m.email || m.phoneNumber ? (
                     <>
-                      <p className="text-gray-600">{m.email || m.phoneNumber}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-600">{m.email || m.phoneNumber}</span>
+                        {canEdit && !m.hasAccount && m.email && (
+                          <IconButton
+                            icon="resend"
+                            label={resendingId === m.id ? 'Sending invite...' : 'Resend invite'}
+                            variant="warning"
+                            onClick={() => onResend(m)}
+                            disabled={resendingId === m.id}
+                          />
+                        )}
+                      </div>
                       {m.email && m.phoneNumber && (
                         <p className="text-[11px] leading-none text-gray-400 mt-1">{m.phoneNumber}</p>
                       )}
@@ -136,15 +147,6 @@ export default function MemberTable({ rows, loading, canEdit, emptyLabel, onEdit
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
                       <IconButton icon="edit" label="Edit member" onClick={() => onEdit(m)} />
-                      {!m.hasAccount && m.email && (
-                        <IconButton
-                          icon="resend"
-                          label={resendingId === m.id ? 'Sending invite...' : 'Resend invite'}
-                          variant="warning"
-                          onClick={() => onResend(m)}
-                          disabled={resendingId === m.id}
-                        />
-                      )}
                       {m.isActive && (
                         <IconButton icon="delete" label="Delete member" variant="danger" onClick={() => onDelete(m)} />
                       )}

@@ -56,6 +56,8 @@ export default function Savings() {
   const [showAdd, setShowAdd] = useState(false);
   // Verifying posts the deposit to the books and cannot be undone.
   const [verifying, setVerifying] = useState<Deposit | null>(null);
+  // Only while unverified: once in the books a deposit is corrected, not removed.
+  const [deleting, setDeleting] = useState<Deposit | null>(null);
   const [editDeposit, setEditDeposit] = useState<{ id: string; amount: string; notes: string } | null>(null);
   const [filterMonth, setFilterMonth] = useState("");
   const [filterVerified, setFilterVerified] = useState("");
@@ -127,6 +129,11 @@ export default function Savings() {
       qc.invalidateQueries({ queryKey: ["finance-summary"] });
       setEditDeposit(null);
     },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => depositsApi.deleteDeposit(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["deposits"] }); setDeleting(null); },
   });
 
   const verifyMutation = useMutation({
@@ -481,11 +488,19 @@ export default function Savings() {
                       />
                     )}
                     {!d.isVerified && (isGroupAdmin || d.memberId === user?.memberId) && (
-                      <IconButton
-                        icon="edit"
-                        label="Edit deposit"
-                        onClick={() => setEditDeposit({ id: d.id, amount: String(d.amount), notes: d.notes ?? "" })}
-                      />
+                      <>
+                        <IconButton
+                          icon="edit"
+                          label="Edit deposit"
+                          onClick={() => setEditDeposit({ id: d.id, amount: String(d.amount), notes: d.notes ?? "" })}
+                        />
+                        <IconButton
+                          icon="delete"
+                          label="Delete deposit"
+                          variant="danger"
+                          onClick={() => setDeleting(d)}
+                        />
+                      </>
                     )}
                   </div>
                 </td>
@@ -501,6 +516,18 @@ export default function Savings() {
           </tbody>
         </table>
       </div>
+      {deleting && (
+        <ConfirmDialog
+          title="Delete this deposit?"
+          body={`This removes the unverified ${formatCurrency(deleting.amount)} recorded for ${deleting.memberName}.`}
+          confirmLabel="Delete"
+          busyLabel="Deleting..."
+          busy={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(deleting.id)}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
+
       {verifying && (
         <ConfirmDialog
           title="Verify this deposit?"

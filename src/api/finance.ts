@@ -9,6 +9,7 @@ import type {
   SavingsSummary,
   Transaction,
   TrialBalance,
+  LateJoinerInterest,
   PagedResult,
   TransactionType,
   LedgerAccount,
@@ -30,6 +31,7 @@ export const depositsApi = {
     apiClient.put(`/deposits/${id}`, body).then((r) => r.data),
 
   verifyDeposit: (id: string) => apiClient.put(`/deposits/${id}/verify`),
+  deleteDeposit: (id: string) => apiClient.delete(`/deposits/${id}`),
 
   getSummary: (params?: { groupId?: string }) =>
     apiClient
@@ -40,6 +42,7 @@ export const depositsApi = {
 export const loansApi = {
   update: (id: string, body: { amount: number; interestRate: number | null; dueDate: string | null; notes?: string }) =>
     apiClient.put(`/loans/${id}`, body).then((r) => r.data),
+  delete: (id: string) => apiClient.delete(`/loans/${id}`),
   getAll: (params?: {
     groupId?: string;
     borrowerId?: string;
@@ -105,4 +108,11 @@ export const transactionsApi = {
   }) => apiClient.get<PagedResult<Transaction>>('/transactions', { params }).then(r => r.data),
   getTrialBalance: (params?: { groupId?: string }) =>
     apiClient.get<TrialBalance>('/transactions/trial-balance', { params }).then(r => r.data),
+};
+
+export const lateJoinerInterestApi = {
+  getAll: (params?: { groupId?: string }) =>
+    apiClient.get<LateJoinerInterest[]>('/late-joiner-interest', { params }).then(r => r.data),
+  record: (body: { memberId: string; amount: number; paidDate: string; notes?: string | null }) =>
+    apiClient.post<{ id: string }>('/late-joiner-interest', body).then(r => r.data),
 };

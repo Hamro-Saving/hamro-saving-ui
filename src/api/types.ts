@@ -122,3 +122,14 @@ export interface PagedResult<T> {
   total: number;
   totalPages: number;
 }
+
+/** Interest a member who joined late paid to catch up with the group. Income, not savings. */
+export interface LateJoinerInterest {
+  id: string;
+  memberId: string;
+  memberName: string;
+  amount: number;
+  paidDate: string;
+  notes?: string | null;
+  createdAt: string;
+}

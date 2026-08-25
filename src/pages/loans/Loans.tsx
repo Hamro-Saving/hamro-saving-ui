@@ -12,6 +12,7 @@ import RecordPaymentModal from './RecordPaymentModal';
 import type { BorrowerType, Loan } from '../../api/types';
 import Select from '../../components/Select';
 import Amount from '../../components/Amount';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 export default function Loans() {
   const { user, isGroupAdmin } = useAuth();
@@ -22,6 +23,8 @@ export default function Loans() {
   const [showAdd, setShowAdd] = useState(false);
   const [applyForSelf, setApplyForSelf] = useState(false);
   const [editLoan, setEditLoan] = useState<{ id: string; amount: string; interestRate: string; dueDate: string; notes: string } | null>(null);
+  // A cancelled loan came to nothing and has no entries, so it can be cleared away.
+  const [deletingLoan, setDeletingLoan] = useState<Loan | null>(null);
   const [payingLoan, setPayingLoan] = useState<Loan | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
   const [form, setForm] = useState({ borrowerId: '', borrowerType: 'Member', amount: '', interestRate: '', startDate: new Date().toISOString().slice(0, 10), dueDate: '', notes: '' });
@@ -47,6 +50,11 @@ export default function Loans() {
     qc.invalidateQueries({ queryKey: ['loans'] });
     qc.invalidateQueries({ queryKey: ['finance-summary'] });
   };
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => loansApi.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['loans'] }); setDeletingLoan(null); },
+  });
 
   const addMutation = useMutation({
     mutationFn: () => {
@@ -108,6 +116,7 @@ export default function Loans() {
           const isBorrower = loan.borrowerId === user?.memberId;
           const beforeDisbursement = loan.status === 'Pending' || loan.status === 'Approved';
           const canEdit = beforeDisbursement && (isAdmin || (loan.borrowerType === 'Member' && isBorrower));
+          const canDelete = loan.status === 'Cancelled' && (isAdmin || (loan.borrowerType === 'Member' && isBorrower));
           const live = isLive(loan);
 
           return (
@@ -175,6 +184,9 @@ export default function Loans() {
                   >
                     Edit
                   </Button>
+                )}
+                {canDelete && (
+                  <Button size="sm" variant="danger" onClick={() => setDeletingLoan(loan)}>Delete</Button>
                 )}
               </div>
             </div>
@@ -267,6 +279,18 @@ export default function Loans() {
             </div>
           </div>
         </div>
+      )}
+
+      {deletingLoan && (
+        <ConfirmDialog
+          title="Delete this cancelled loan?"
+          body={`This removes the cancelled ${formatCurrency(deletingLoan.amount)} loan for ${deletingLoan.borrowerName} and the votes cast on it.`}
+          confirmLabel="Delete"
+          busyLabel="Deleting..."
+          busy={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(deletingLoan.id)}
+          onCancel={() => setDeletingLoan(null)}
+        />
       )}
     </div>
   );
