@@ -32,3 +32,23 @@ export function currentBsDate(): { year: number; month: number; day: number } {
 export function todayIso(): string {
   return new Date().toISOString().split('T')[0];
 }
+
+/** A Bikram Sambat period as people say it: "Bhadra 2082". */
+export function bsPeriod(month: number, year: number): string {
+  return `${bsMonthName(month)} ${year}`;
+}
+
+/** "MonthlyDeposit" -> "Monthly Deposit". */
+export function spaceCamelCase(value: string): string {
+  return value.replace(/([A-Z])/g, ' $1').trim();
+}
+
+/**
+ * How a deposit reads. A monthly deposit is identified by the month it covers, which is
+ * recorded in Bikram Sambat and is not the date it happened to be paid; the other kinds
+ * are one-offs with no period to name.
+ */
+export function depositLabel(type: string, month?: number | null, year?: number | null): string {
+  const label = spaceCamelCase(type);
+  return type === 'MonthlyDeposit' && month && year ? `${label} · ${bsPeriod(month, year)}` : label;
+}

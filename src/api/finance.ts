@@ -7,6 +7,11 @@ import type {
   FixedDeposit,
   FinancialSummary,
   SavingsSummary,
+  Transaction,
+  TrialBalance,
+  PagedResult,
+  TransactionType,
+  LedgerAccount,
 } from "./types";
 
 export const depositsApi = {
@@ -90,4 +95,14 @@ export const financeApi = {
     apiClient
       .get<FinancialSummary>("/finance/summary", { params })
       .then((r) => r.data),
+};
+
+export const transactionsApi = {
+  getAll: (params?: {
+    groupId?: string; type?: TransactionType; account?: LedgerAccount;
+    memberId?: string; from?: string; to?: string;
+    side?: 'Debit' | 'Credit'; page?: number; pageSize?: number;
+  }) => apiClient.get<PagedResult<Transaction>>('/transactions', { params }).then(r => r.data),
+  getTrialBalance: (params?: { groupId?: string }) =>
+    apiClient.get<TrialBalance>('/transactions/trial-balance', { params }).then(r => r.data),
 };

@@ -6,9 +6,8 @@ import { useDashboardData } from "./useDashboardData";
 import DashboardHeader from "./DashboardHeader";
 import GroupInfoBar from "./GroupInfoBar";
 import KpiSection from "./KpiSection";
-import MembersTable from "./MembersTable";
 import ActiveLoansCard from "./ActiveLoansCard";
-import RecentDepositsCard from "./RecentDepositsCard";
+import RecentTransactionsCard from "./RecentTransactionsCard";
 import AddMemberModal, { type MemberFormValues } from "./AddMemberModal";
 import GroupSettingsModal, { type GroupFormValues } from "./GroupSettingsModal";
 
@@ -26,7 +25,7 @@ export default function Dashboard() {
   const [showAddMember, setShowAddMember] = useState(false);
   const [memberError, setMemberError] = useState("");
 
-  const { summary, activeLoans, recentDeposits, group, members } =
+  const { summary, activeLoans, recentTransactions, group } =
     useDashboardData(groupId);
 
   const updateGroupMutation = useMutation({
@@ -80,11 +79,9 @@ export default function Dashboard() {
         activeLoanCount={activeLoans?.length ?? 0}
       />
 
-      {isAdmin && <MembersTable members={members} />}
-
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <ActiveLoansCard loans={activeLoans} />
-        <RecentDepositsCard deposits={recentDeposits} />
+        <RecentTransactionsCard transactions={recentTransactions?.items} />
       </div>
 
       {showAddMember && (

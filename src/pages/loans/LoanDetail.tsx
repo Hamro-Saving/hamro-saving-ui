@@ -3,12 +3,16 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { loansApi } from '../../api/finance';
 import { useAuth } from '../../context/AuthContext';
+import type { LoanPayment } from '../../api/types';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import Button from '../../components/Button';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { STATUS_COLORS, isLive } from './loanMath';
 import { useLoanActions } from './useLoanActions';
 import LoanWorkflowPanel from './LoanWorkflowPanel';
 import RecordPaymentModal from './RecordPaymentModal';
+import Amount from '../../components/Amount';
+import IconButton from '../../components/IconButton';
 
 function Stat({ label, value, sub, tone = 'default' }: { label: string; value: string; sub?: string; tone?: 'default' | 'amber' | 'emerald' }) {
   const valueTone = tone === 'amber' ? 'text-amber-600' : tone === 'emerald' ? 'text-emerald-600' : 'text-gray-900';
@@ -27,6 +31,8 @@ export default function LoanDetail() {
   const { isGroupAdmin } = useAuth();
   const isAdmin = isGroupAdmin;
   const [showPayment, setShowPayment] = useState(false);
+  // Verifying posts the payment to the books and cannot be undone.
+  const [verifyingPayment, setVerifyingPayment] = useState<LoanPayment | null>(null);
 
   const { data: loan, isLoading, isError } = useQuery({
     queryKey: ['loan', id],
@@ -149,7 +155,7 @@ export default function LoanDetail() {
                     <span className="block text-[11px] text-gray-400">of {formatCurrency(p.interestOwedBefore)} owed</span>
                   </td>
                   <td className="px-5 py-3 text-right text-gray-800">{formatCurrency(p.principalAmount)}</td>
-                  <td className="px-5 py-3 text-right font-semibold text-gray-900">{formatCurrency(p.amount)}</td>
+                  <td className="px-5 py-3 text-right"><Amount value={p.amount} side="credit" /></td>
                   <td className="px-5 py-3 text-right">
                     <span className="text-gray-800">{formatCurrency(p.outstandingPrincipalAfter)}</span>
                     {p.unpaidInterestAfter > 0 && (
@@ -160,7 +166,7 @@ export default function LoanDetail() {
                     {p.isVerified
                       ? <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">Verified</span>
                       : isAdmin
-                        ? <Button size="sm" disabled={verifyPayment.isPending} onClick={() => verifyPayment.mutate(p.id)}>Verify</Button>
+                        ? <IconButton icon="verify" label="Verify payment" disabled={verifyPayment.isPending} onClick={() => setVerifyingPayment(p)} />
                         : <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">Pending</span>}
                   </td>
                 </tr>
@@ -181,6 +187,19 @@ export default function LoanDetail() {
       )}
 
       {showPayment && <RecordPaymentModal loan={loan} onClose={() => setShowPayment(false)} />}
+
+      {verifyingPayment && (
+        <ConfirmDialog
+          title="Verify this payment?"
+          body={`This records ${formatCurrency(verifyingPayment.amount)} against the loan and cannot be undone.`}
+          confirmLabel="Verify payment"
+          busyLabel="Verifying..."
+          variant="primary"
+          busy={verifyPayment.isPending}
+          onConfirm={() => { verifyPayment.mutate(verifyingPayment.id); setVerifyingPayment(null); }}
+          onCancel={() => setVerifyingPayment(null)}
+        />
+      )}
     </div>
   );
 }

@@ -8,18 +8,25 @@ import {
   formatCurrency,
   formatDate,
   BS_MONTHS,
-  bsMonthName,
+  bsPeriod,
   currentBsDate,
   todayIso,
 } from "../../utils/format";
-import type { DepositType } from "../../api/types";
+import type { Deposit, DepositType } from "../../api/types";
+import Select from '../../components/Select';
+import Amount from '../../components/Amount';
+import IconButton from '../../components/IconButton';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
-const DEPOSIT_TYPES: DepositType[] = [
-  "MonthlyDeposit",
-  "InterestPayment",
-  "LoanRepayment",
-  "Other",
-];
+/**
+ * What can be recorded here. Interest and loan repayments are deliberately absent: those
+ * arrive through the loan's own payment flow, which splits principal from interest and
+ * posts them to separate accounts. Recording one as a deposit would credit member savings
+ * instead, and the books would say the group owes the money back.
+ *
+ * The type itself still exists — older deposits carry it and must keep displaying.
+ */
+const DEPOSIT_TYPES: DepositType[] = ["MonthlyDeposit", "Other"];
 const MONTHLY_SAVING_AMOUNTS = [8000, 10000];
 
 function getFormErrors(form: {
@@ -47,6 +54,8 @@ export default function Savings() {
   const { user, isGroupAdmin } = useAuth();
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
+  // Verifying posts the deposit to the books and cannot be undone.
+  const [verifying, setVerifying] = useState<Deposit | null>(null);
   const [editDeposit, setEditDeposit] = useState<{ id: string; amount: string; notes: string } | null>(null);
   const [filterMonth, setFilterMonth] = useState("");
   const [filterVerified, setFilterVerified] = useState("");
@@ -166,10 +175,10 @@ export default function Savings() {
 
       {/* Filters */}
       <div className="flex gap-3 flex-wrap">
-        <select
+        <Select
           value={filterMonth}
           onChange={(e) => setFilterMonth(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+          
         >
           <option value="">All Months</option>
           {BS_MONTHS.map((m, i) => (
@@ -177,16 +186,16 @@ export default function Savings() {
               {m}
             </option>
           ))}
-        </select>
-        <select
+        </Select>
+        <Select
           value={filterVerified}
           onChange={(e) => setFilterVerified(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+          
         >
           <option value="">All Status</option>
           <option value="true">Verified</option>
           <option value="false">Pending</option>
-        </select>
+        </Select>
       </div>
 
       {showAdd && (
@@ -201,12 +210,12 @@ export default function Savings() {
                   <label className="text-xs text-gray-600 font-medium">
                     Member
                   </label>
-                  <select
+                  <Select
                     value={form.memberId}
                     onChange={(e) =>
                       setForm((f) => ({ ...f, memberId: e.target.value }))
                     }
-                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    className="mt-1 w-full"
                   >
                     <option value="">Select member</option>
                     {(members ?? []).map((m) => (
@@ -214,7 +223,7 @@ export default function Savings() {
                         {m.firstName} {m.lastName}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               )}
 
@@ -236,19 +245,19 @@ export default function Savings() {
                 <label className="text-xs text-gray-600 font-medium">
                   Deposit Type
                 </label>
-                <select
+                <Select
                   value={form.type}
                   onChange={(e) =>
                     handleTypeChange(e.target.value as DepositType)
                   }
-                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  className="mt-1 w-full"
                 >
                   {DEPOSIT_TYPES.map((t) => (
                     <option key={t} value={t}>
                       {t.replace(/([A-Z])/g, " $1").trim()}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div>
@@ -288,41 +297,43 @@ export default function Savings() {
                 )}
               </div>
 
-              <div>
-                <label className="text-xs text-gray-600 font-medium">
-                  Deposited For (BS)
-                </label>
-                <div className="grid grid-cols-2 gap-3 mt-1">
-                  <select
-                    value={form.depositMonth}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        depositMonth: Number(e.target.value),
-                      }))
-                    }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  >
-                    {BS_MONTHS.map((m, i) => (
-                      <option key={i} value={i + 1}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    value={form.depositYear}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        depositYear: Number(e.target.value),
-                      }))
-                    }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    placeholder="2082"
-                  />
+              {form.type === "MonthlyDeposit" && (
+                <div>
+                  <label className="text-xs text-gray-600 font-medium">
+                    Deposited For (BS)
+                  </label>
+                  <div className="grid grid-cols-2 gap-3 mt-1">
+                    <Select
+                      value={form.depositMonth}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          depositMonth: Number(e.target.value),
+                        }))
+                      }
+                      className="w-full"
+                    >
+                      {BS_MONTHS.map((m, i) => (
+                        <option key={i} value={i + 1}>
+                          {m}
+                        </option>
+                      ))}
+                    </Select>
+                    <input
+                      type="number"
+                      value={form.depositYear}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          depositYear: Number(e.target.value),
+                        }))
+                      }
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      placeholder="2082"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="text-xs text-gray-600 font-medium">
@@ -415,12 +426,11 @@ export default function Savings() {
                 "Month/Year",
                 "Type",
                 "Amount",
-                "Status",
                 "Actions",
               ].map((h) => (
                 <th
                   key={h}
-                  className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                  className={`px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider ${h === "Amount" ? "text-right" : "text-left"}`}
                 >
                   {h}
                 </th>
@@ -430,7 +440,7 @@ export default function Savings() {
           <tbody className="divide-y divide-gray-50">
             {isLoading && (
               <tr>
-                <td colSpan={6} className="text-center py-10 text-gray-400">
+                <td colSpan={5} className="text-center py-10 text-gray-400">
                   Loading...
                 </td>
               </tr>
@@ -441,7 +451,7 @@ export default function Savings() {
                   {d.memberName}
                 </td>
                 <td className="px-5 py-3.5 text-gray-600">
-                  {bsMonthName(d.depositMonth)} {d.depositYear}
+                  {d.depositMonth && d.depositYear ? bsPeriod(d.depositMonth, d.depositYear) : "—"}
                 </td>
                 <td className="px-5 py-3.5">
                   <span
@@ -450,38 +460,32 @@ export default function Savings() {
                     {d.type.replace(/([A-Z])/g, " $1").trim()}
                   </span>
                 </td>
-                <td className="px-5 py-3.5 font-semibold text-gray-900">
-                  {formatCurrency(d.amount)}
-                </td>
-                <td className="px-5 py-3.5">
+                <td className="px-5 py-3.5 text-right">
+                  <Amount value={d.amount} side="credit" />
                   {d.isVerified ? (
-                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs">
-                      Verified {d.verifiedAt ? formatDate(d.verifiedAt) : ""}
-                    </span>
+                    <p className="text-[11px] leading-none text-emerald-600 mt-1">
+                      Verified{d.verifiedAt ? ` ${formatDate(d.verifiedAt)}` : ""}
+                    </p>
                   ) : (
-                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs">
-                      Pending
-                    </span>
+                    <p className="text-[11px] leading-none text-amber-600 mt-1">Pending</p>
                   )}
                 </td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center gap-2">
                     {!d.isVerified && isGroupAdmin && (
-                      <Button
+                      <IconButton
+                        icon="verify"
+                        label="Verify deposit"
                         variant="primary"
-                        size="sm"
-                        onClick={() => verifyMutation.mutate(d.id)}
-                      >
-                        Verify
-                      </Button>
+                        onClick={() => setVerifying(d)}
+                      />
                     )}
                     {!d.isVerified && (isGroupAdmin || d.memberId === user?.memberId) && (
-                      <Button
-                        size="sm"
+                      <IconButton
+                        icon="edit"
+                        label="Edit deposit"
                         onClick={() => setEditDeposit({ id: d.id, amount: String(d.amount), notes: d.notes ?? "" })}
-                      >
-                        Edit
-                      </Button>
+                      />
                     )}
                   </div>
                 </td>
@@ -489,7 +493,7 @@ export default function Savings() {
             ))}
             {!isLoading && !deposits?.length && (
               <tr>
-                <td colSpan={6} className="text-center py-10 text-gray-400">
+                <td colSpan={5} className="text-center py-10 text-gray-400">
                   No deposits found
                 </td>
               </tr>
@@ -497,6 +501,19 @@ export default function Savings() {
           </tbody>
         </table>
       </div>
+      {verifying && (
+        <ConfirmDialog
+          title="Verify this deposit?"
+          body={`This records ${formatCurrency(verifying.amount)} from ${verifying.memberName} in the group's books. It cannot be undone.`}
+          confirmLabel="Verify deposit"
+          busyLabel="Verifying..."
+          variant="primary"
+          busy={verifyMutation.isPending}
+          onConfirm={() => { verifyMutation.mutate(verifying.id); setVerifying(null); }}
+          onCancel={() => setVerifying(null)}
+        />
+      )}
+
     </div>
   );
 }

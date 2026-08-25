@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { financeApi, loansApi, depositsApi } from "../../api/finance";
-import { groupsApi, membersApi } from "../../api/groups";
+import { financeApi, loansApi, transactionsApi } from "../../api/finance";
+import { groupsApi } from "../../api/groups";
 
 /** Loads every dataset the dashboard renders for the given group. */
 export function useDashboardData(groupId?: string) {
@@ -12,20 +12,14 @@ export function useDashboardData(groupId?: string) {
     queryKey: ["loans", groupId, "Active"],
     queryFn: () => loansApi.getAll({ status: "Active" }),
   });
-  const { data: recentDeposits } = useQuery({
-    queryKey: ["deposits", groupId],
-    queryFn: () => depositsApi.getDeposits(),
+  const { data: recentTransactions } = useQuery({
+    queryKey: ["transactions", groupId, "recent"],
+    queryFn: () => transactionsApi.getAll({ page: 1, pageSize: 5 }),
   });
   const { data: group } = useQuery({
     queryKey: ["group", groupId],
     queryFn: () => groupsApi.getById(groupId!),
     enabled: !!groupId,
   });
-  const { data: members } = useQuery({
-    queryKey: ["members", groupId],
-    queryFn: () => membersApi.getAll({ roles: ['Member', 'Admin'] }),
-    enabled: !!groupId,
-  });
-
-  return { summary, activeLoans, recentDeposits, group, members };
+  return { summary, activeLoans, recentTransactions, group };
 }

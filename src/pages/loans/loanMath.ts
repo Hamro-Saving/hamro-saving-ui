@@ -1,4 +1,5 @@
 import type { Loan, LoanStatus } from '../../api/types';
+import type { LedgerSide } from '../../utils/ledgerSide';
 
 export const STATUS_COLORS: Record<LoanStatus, string> = {
   Pending: 'bg-yellow-100 text-yellow-700',
@@ -14,6 +15,13 @@ export const LOAN_STATUS_FILTERS = ['', 'Pending', 'Approved', 'Active', 'PaidOf
 
 /** A loan that is out with the borrower and still accruing. */
 export const isLive = (loan: Loan) => loan.status === 'Active' || loan.status === 'Overdue';
+
+/**
+ * A loan's amount only reads as money out while the money is actually out. Before
+ * disbursement it has not left, and once repaid it has come back, so neither is an
+ * outflow the group is currently carrying.
+ */
+export const loanAmountSide = (loan: Loan): LedgerSide => (isLive(loan) ? 'debit' : 'inactive');
 
 export const round2 = (v: number) => Math.round(v * 100) / 100;
 

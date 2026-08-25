@@ -6,10 +6,12 @@ import { membersApi } from '../../api/groups';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
 import { formatCurrency, formatDate } from '../../utils/format';
-import { STATUS_COLORS, LOAN_STATUS_FILTERS, isLive } from './loanMath';
+import { STATUS_COLORS, LOAN_STATUS_FILTERS, isLive, loanAmountSide } from './loanMath';
 import LoanWorkflowPanel from './LoanWorkflowPanel';
 import RecordPaymentModal from './RecordPaymentModal';
 import type { BorrowerType, Loan } from '../../api/types';
+import Select from '../../components/Select';
+import Amount from '../../components/Amount';
 
 export default function Loans() {
   const { user, isGroupAdmin } = useAuth();
@@ -104,8 +106,8 @@ export default function Loans() {
       <div className="grid gap-4">
         {(loans ?? []).map(loan => {
           const isBorrower = loan.borrowerId === user?.memberId;
-          const canEdit = loan.status === 'Pending' && loan.approvalCount === 0 && loan.declineCount === 0 &&
-            (isAdmin || (loan.borrowerType === 'Member' && isBorrower));
+          const beforeDisbursement = loan.status === 'Pending' || loan.status === 'Approved';
+          const canEdit = beforeDisbursement && (isAdmin || (loan.borrowerType === 'Member' && isBorrower));
           const live = isLive(loan);
 
           return (
@@ -127,7 +129,7 @@ export default function Loans() {
                   </p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-lg font-bold text-gray-900">{formatCurrency(loan.amount)}</p>
+                  <p className="text-lg"><Amount value={loan.amount} side={loanAmountSide(loan)} className="text-lg" /></p>
                   <p className="text-xs text-gray-400">{loan.interestRate}% per year</p>
                 </div>
               </div>
@@ -155,7 +157,7 @@ export default function Loans() {
 
               {loan.status === 'PaidOff' && (
                 <p className="text-xs text-emerald-600">
-                  Settled · {formatCurrency(loan.totalPrincipalPaid)} principal and {formatCurrency(loan.totalInterestPaid)} interest paid
+                  Settled · <Amount value={loan.totalPrincipalPaid} side="credit" className="text-xs" /> principal and <Amount value={loan.totalInterestPaid} side="credit" className="text-xs" /> interest paid
                 </p>
               )}
 
@@ -169,7 +171,8 @@ export default function Loans() {
                 {canEdit && (
                   <Button
                     size="sm"
-                    onClick={() => setEditLoan({ id: loan.id, amount: String(loan.amount), interestRate: String(loan.interestRate), dueDate: loan.dueDate ? loan.dueDate.slice(0, 10) : '', notes: loan.notes ?? '' })}>
+                    onClick={() => setEditLoan({ id: loan.id, amount: String(loan.amount), interestRate: String(loan.interestRate), dueDate: loan.dueDate ? loan.dueDate.slice(0, 10) : '', notes: loan.notes ?? '' })}
+                  >
                     Edit
                   </Button>
                 )}
@@ -190,18 +193,18 @@ export default function Loans() {
             <div className="space-y-3">
               {!applyForSelf && (
                 <div><label className="text-xs text-gray-600 font-medium">Borrower Type</label>
-                  <select value={form.borrowerType} onChange={e => setForm(f => ({ ...f, borrowerType: e.target.value, borrowerId: '' }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                  <Select value={form.borrowerType} onChange={e => setForm(f => ({ ...f, borrowerType: e.target.value, borrowerId: '' }))} className="mt-1 w-full">
                     <option value="Member">Member</option><option value="NonMember">Non-Member</option>
-                  </select></div>
+                  </Select></div>
               )}
               {!applyForSelf && (
                 <div><label className="text-xs text-gray-600 font-medium">Borrower</label>
-                  <select value={form.borrowerId} onChange={e => setForm(f => ({ ...f, borrowerId: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                  <Select value={form.borrowerId} onChange={e => setForm(f => ({ ...f, borrowerId: e.target.value }))} className="mt-1 w-full">
                     <option value="">Select borrower</option>
                     {borrowers.map(b => (
                       <option key={b.id} value={b.id}>{b.fullName}</option>
                     ))}
-                  </select></div>
+                  </Select></div>
               )}
               <div><label className="text-xs text-gray-600 font-medium">Loan Amount (NPR)</label>
                 <input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>

@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
 import { formatCurrency, formatDate, todayIso } from '../../utils/format';
 import type { FixedDeposit } from '../../api/types';
+import Amount from '../../components/Amount';
 
 const emptyExpense = { amount: '', category: '', description: '', expenseDate: todayIso() };
 const emptyFd = { institutionName: '', amount: '', interestRate: '', startDate: todayIso(), maturityDate: '', notes: '' };
@@ -43,7 +44,7 @@ function FieldError({ message }: { message?: string }) {
 }
 
 export default function Finance() {
-  const { user } = useAuth();
+  const { user, isGroupAdmin } = useAuth();
   const qc = useQueryClient();
   const [tab, setTab] = useState<'expenses' | 'fixed-deposits'>('expenses');
   const [showAdd, setShowAdd] = useState(false);
@@ -145,10 +146,12 @@ export default function Finance() {
             {formatCurrency(totalExpenses)} spent · {formatCurrency(totalFds)} in fixed deposits
           </p>
         </div>
-        <Button variant="primary" onClick={openAdd}>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-          Add {tab === 'expenses' ? 'Expense' : 'Fixed Deposit'}
-        </Button>
+        {isGroupAdmin && (
+          <Button variant="primary" onClick={openAdd}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            Add {tab === 'expenses' ? 'Expense' : 'Fixed Deposit'}
+          </Button>
+        )}
       </div>
 
       <div className="flex gap-2">
@@ -319,7 +322,7 @@ export default function Finance() {
                   <td className="px-5 py-3.5"><span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">{e.category}</span></td>
                   <td className="px-5 py-3.5 text-gray-600">{e.description}</td>
                   <td className="px-5 py-3.5 text-gray-500">{formatDate(e.expenseDate)}</td>
-                  <td className="px-5 py-3.5 text-right font-semibold text-red-600">{formatCurrency(e.amount)}</td>
+                  <td className="px-5 py-3.5 text-right"><Amount value={e.amount} side="debit" /></td>
                 </tr>
               ))}
               {expensesLoading && <tr><td colSpan={4} className="text-center py-10 text-gray-400">Loading...</td></tr>}
@@ -329,7 +332,7 @@ export default function Finance() {
               <tfoot>
                 <tr className="border-t border-gray-100 bg-gray-50">
                   <td colSpan={3} className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Total</td>
-                  <td className="px-5 py-3 text-right font-bold text-red-600">{formatCurrency(totalExpenses)}</td>
+                  <td className="px-5 py-3 text-right"><Amount value={totalExpenses} side="debit" /></td>
                 </tr>
               </tfoot>
             )}
@@ -368,13 +371,19 @@ export default function Finance() {
                   {fd.notes && <p className="text-xs text-gray-500 mt-1">{fd.notes}</p>}
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-lg font-bold text-gray-900">{formatCurrency(fd.amount)}</p>
+                  <p className="text-lg">
+                    <Amount
+                      value={fd.amount}
+                      side={fd.status === 'Withdrawn' ? 'inactive' : 'debit'}
+                      className="text-lg"
+                    />
+                  </p>
                   {fd.status === 'Withdrawn' && fd.interestEarned != null ? (
-                    <p className="text-xs text-gray-400">Returned {formatCurrency(fd.amount + fd.interestEarned)}</p>
+                    <p className="text-xs text-gray-400">Returned <Amount value={fd.amount + fd.interestEarned} side="credit" className="text-xs" /></p>
                   ) : (
                     <p className="text-xs text-gray-400">Matures at {formatCurrency(fd.expectedMaturityAmount)}</p>
                   )}
-                  {fd.status !== 'Withdrawn' && (
+                  {fd.status !== 'Withdrawn' && isGroupAdmin && (
                     <Button size="sm" className="mt-2" onClick={() => openWithdraw(fd)}>Withdraw</Button>
                   )}
                 </div>

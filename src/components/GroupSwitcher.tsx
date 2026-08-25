@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import Select from './Select';
 
 /**
  * Chooses which group the person is acting in. Since roles ride in the token, switching
@@ -33,19 +34,19 @@ export default function GroupSwitcher() {
       <label htmlFor="group-switcher" className="block text-[11px] uppercase tracking-wide text-gray-500 mb-1.5 px-1">
         Acting in
       </label>
-      <select
+      <Select
         id="group-switcher"
         value={user?.activeGroupId ?? ''}
         disabled={busy}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-700 focus:outline-none focus:border-blue-500 disabled:opacity-50"
+        variant="dark" className="w-full"
       >
         {memberships.map((m) => (
           <option key={m.groupId} value={m.groupId}>
             {m.groupName} — {m.groupRole}
           </option>
         ))}
-      </select>
+      </Select>
       {error && <p className="text-xs text-red-400 mt-1.5 px-1">{error}</p>}
     </div>
   );

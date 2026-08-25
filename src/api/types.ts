@@ -38,18 +38,18 @@ export interface AuthUser {
 
 export interface Group { id: string; name: string; code: string; description?: string; isActive: boolean; memberInterestRate: number; nonMemberInterestRate: number; validFrom?: string | null; validTo?: string | null; memberCount: number; createdAt: string; updatedAt: string; }
 
-export interface Member { id: string; email?: string | null; firstName: string; lastName?: string | null; fullName: string; groupRole: GroupRole; groupId: string; isActive: boolean; hasAccount: boolean; phoneNumber?: string | null; address?: string | null; createdAt: string; }
+export interface Member { id: string; email?: string | null; firstName: string; lastName?: string | null; fullName: string; groupRole: GroupRole; groupId: string; isActive: boolean; hasAccount: boolean; totalDeposits: number; outstandingPrincipal: number; outstandingInterest: number; phoneNumber?: string | null; address?: string | null; createdAt: string; }
 
 export type DepositType = 'MonthlyDeposit' | 'InterestPayment' | 'LoanRepayment' | 'Other';
 
-export interface Deposit { id: string; memberId: string; memberName: string; groupId: string; amount: number; depositMonth: number; depositYear: number; depositDate: string; type: DepositType; notes?: string; isVerified: boolean; verifiedAt?: string; createdAt: string; }
+export interface Deposit { id: string; memberId: string; memberName: string; groupId: string; amount: number; depositMonth?: number | null; depositYear?: number | null; depositDate: string; type: DepositType; notes?: string; isVerified: boolean; verifiedAt?: string; createdAt: string; }
 
 export type LoanStatus = 'Pending' | 'Approved' | 'Active' | 'PaidOff' | 'Overdue' | 'Cancelled' | 'Declined';
 export type LoanPaymentType = 'Principal' | 'Interest' | 'Mixed';
 export type BorrowerType = 'Member' | 'NonMember';
 
 export interface ApproverInfo { approverId: string; approverName: string; approvedAt: string; }
-export interface Loan { id: string; borrowerId: string; borrowerName: string; borrowerType: BorrowerType; groupId: string; amount: number; interestRate: number; outstandingPrincipal: number; accruedInterest: number; payoffAmount: number; dailyInterest: number; unpaidInterest: number; totalPrincipalPaid: number; totalInterestPaid: number; disbursedAt?: string; lastAccrualDate?: string; startDate: string; dueDate?: string; status: LoanStatus; notes?: string; disbursedById?: string; approvalCount: number; declineCount: number; requiredApprovals: number; hasCurrentUserApproved: boolean; hasCurrentUserDeclined: boolean; approvers: ApproverInfo[]; decliners: ApproverInfo[]; createdAt: string; }
+export interface Loan { id: string; borrowerId: string; borrowerName: string; borrowerType: BorrowerType; groupId: string; amount: number; interestRate: number; outstandingPrincipal: number; accruedInterest: number; payoffAmount: number; dailyInterest: number; unpaidInterest: number; totalPrincipalPaid: number; totalInterestPaid: number; disbursedAt?: string; lastAccrualDate?: string; startDate: string; dueDate?: string; status: LoanStatus; notes?: string; disbursedById?: string; approvalCount: number; declineCount: number; requiredApprovals: number; requiredDeclines: number; hasCurrentUserApproved: boolean; hasCurrentUserDeclined: boolean; approvers: ApproverInfo[]; decliners: ApproverInfo[]; createdAt: string; }
 
 export interface LoanPayment { id: string; loanId: string; amount: number; principalAmount: number; interestAmount: number; paidDate: string; paymentType: LoanPaymentType; notes?: string; interestOwedBefore: number; daysAccrued: number; outstandingPrincipalAfter: number; unpaidInterestAfter: number; isVerified: boolean; verifiedAt?: string; createdAt: string; }
 
@@ -71,3 +71,54 @@ export interface SavingsSummary { totalDeposits: number; totalVerifiedDeposits: 
 export interface PagedResult<T> { items: T[]; totalCount: number; page: number; pageSize: number; }
 
 export interface ProblemDetails { title: string; status: number; detail?: string; errors?: Record<string, string[]>; }
+
+export type LedgerAccount = 'Cash' | 'MemberSavings' | 'LoanReceivable' | 'InterestIncome' | 'FixedDeposits' | 'Expenses';
+
+export type TransactionType =
+  | 'Deposit' | 'LoanDisbursement' | 'LoanPrincipalPayment' | 'LoanInterestPayment'
+  | 'FixedDepositPlaced' | 'FixedDepositWithdrawal' | 'FixedDepositInterest' | 'Expense';
+
+/** One double-entry line: equal value leaving one account and arriving in another. */
+export interface Transaction {
+  id: string;
+  occurredAt: string;
+  type: TransactionType;
+  description: string;
+  debitAccount: LedgerAccount;
+  creditAccount: LedgerAccount;
+  /** "Credit" when the group's cash went up, "Debit" when it went down. */
+  side: 'Debit' | 'Credit';
+  amount: number;
+  memberId?: string | null;
+  memberName?: string | null;
+  sourceType: string;
+  sourceId: string;
+}
+
+export interface AccountBalance {
+  account: LedgerAccount;
+  debits: number;
+  credits: number;
+  balance: number;
+}
+
+export interface TrialBalance {
+  accounts: AccountBalance[];
+  totalDebits: number;
+  totalCredits: number;
+  isBalanced: boolean;
+  moneyIn: number;
+  moneyOut: number;
+  ledgerCash: number;
+  summaryCash: number;
+  cashDifference: number;
+}
+
+/** One page of results, with the total so controls can be rendered without a second call. */
+export interface PagedResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}

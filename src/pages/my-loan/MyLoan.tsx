@@ -3,6 +3,7 @@ import { loansApi } from '../../api/finance';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
 import { formatCurrency, formatDate } from '../../utils/format';
+import Amount from '../../components/Amount';
 
 export default function MyLoan() {
   const { user, logout } = useAuth();
@@ -71,11 +72,11 @@ export default function MyLoan() {
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-white rounded-xl border border-gray-100 p-4 text-center shadow-sm">
                 <p className="text-xs text-gray-500 mb-1">Total Paid</p>
-                <p className="text-lg font-bold text-emerald-600">{formatCurrency(totalPaid)}</p>
+                <p className="text-lg"><Amount value={totalPaid} side="credit" className="text-lg" /></p>
               </div>
               <div className="bg-white rounded-xl border border-gray-100 p-4 text-center shadow-sm">
                 <p className="text-xs text-gray-500 mb-1">Interest Paid</p>
-                <p className="text-lg font-bold text-purple-600">{formatCurrency(activeLoan.totalInterestPaid)}</p>
+                <p className="text-lg"><Amount value={activeLoan.totalInterestPaid} side="credit" className="text-lg" /></p>
               </div>
               <div className="bg-white rounded-xl border border-gray-100 p-4 text-center shadow-sm">
                 <p className="text-xs text-gray-500 mb-1">Principal Left</p>
@@ -95,7 +96,7 @@ export default function MyLoan() {
                       <p className="text-xs text-gray-400">P: {formatCurrency(p.principalAmount)} + I: {formatCurrency(p.interestAmount)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-gray-900">{formatCurrency(p.amount)}</p>
+                      <Amount value={p.amount} side="credit" />
                       {p.isVerified
                         ? <span className="text-xs text-emerald-600">✓ Verified</span>
                         : <span className="text-xs text-amber-600">Pending</span>}

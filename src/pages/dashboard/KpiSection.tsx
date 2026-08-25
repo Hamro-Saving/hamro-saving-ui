@@ -14,9 +14,10 @@ export default function KpiSection({
   activeLoanCount,
 }: KpiSectionProps) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <KpiCard
         label="Total Collection"
+        side="credit"
         value={formatCurrency(summary?.totalSavingsCollected ?? 0)}
         color="blue"
         sub="All deposits"
@@ -38,6 +39,7 @@ export default function KpiSection({
       />
       <KpiCard
         label="On Loan"
+        side="debit"
         value={formatCurrency(summary?.totalOnLoan ?? 0)}
         color="amber"
         sub={`${activeLoanCount} active`}
@@ -59,6 +61,7 @@ export default function KpiSection({
       />
       <KpiCard
         label="Interest Earned"
+        side="credit"
         value={formatCurrency(summary?.totalInterestCollected ?? 0)}
         color="green"
         icon={
@@ -79,6 +82,7 @@ export default function KpiSection({
       />
       <KpiCard
         label="Fixed Deposits"
+        side="debit"
         value={formatCurrency(summary?.totalFixedDeposits ?? 0)}
         color="purple"
         icon={
@@ -99,6 +103,7 @@ export default function KpiSection({
       />
       <KpiCard
         label="Expenses"
+        side="debit"
         value={formatCurrency(summary?.totalExpenses ?? 0)}
         color="red"
         icon={
@@ -119,6 +124,7 @@ export default function KpiSection({
       />
       <KpiCard
         label="In Hand"
+        side="cash"
         value={formatCurrency(summary?.inHandCash ?? 0)}
         color="indigo"
         sub={`${memberCount} members`}

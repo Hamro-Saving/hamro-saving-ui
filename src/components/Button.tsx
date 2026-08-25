@@ -1,7 +1,7 @@
 import React from 'react';
 
 type Variant = 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'dangerSolid';
-type Size = 'sm' | 'md';
+type Size = 'sm' | 'md' | 'icon';
 
 const VARIANTS: Record<Variant, string> = {
   primary: 'bg-blue-600 text-white border border-transparent hover:bg-blue-700',
@@ -16,6 +16,8 @@ const VARIANTS: Record<Variant, string> = {
 const SIZES: Record<Size, string> = {
   sm: 'px-3 py-1.5 text-xs',
   md: 'px-4 py-2 text-sm',
+  /** Square, for a button whose whole content is a glyph. */
+  icon: 'p-1.5',
 };
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {

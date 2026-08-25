@@ -5,6 +5,7 @@ import Button from '../../components/Button';
 import { formatCurrency, formatDate, todayIso } from '../../utils/format';
 import { daysSinceLastAccrual, interestAccruedOn } from './loanMath';
 import type { Loan } from '../../api/types';
+import Amount from '../../components/Amount';
 
 /**
  * Records a payment against a loan. Interest is pre-filled with exactly what the loan has
@@ -112,7 +113,7 @@ export default function RecordPaymentModal({ loan, onClose }: { loan: Loan; onCl
           </div>
           <div className="flex items-center justify-between text-sm border-t border-gray-100 pt-2">
             <span className="text-gray-500">Total payment</span>
-            <span className="font-semibold text-gray-900">{formatCurrency(total)}</span>
+            <Amount value={total} side="credit" />
           </div>
           <div>
             <label className="text-xs text-gray-600 font-medium">Notes</label>

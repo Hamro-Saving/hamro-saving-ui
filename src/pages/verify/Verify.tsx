@@ -1,12 +1,20 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { depositsApi } from "../../api/finance";
 import { useAuth } from "../../context/AuthContext";
-import Button from "../../components/Button";
 import { formatCurrency, formatDate } from "../../utils/format";
+import Amount from '../../components/Amount';
+import { depositLabel } from '../../utils/format';
+import type { Deposit } from '../../api/types';
+import IconButton from '../../components/IconButton';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 export default function Verify() {
   const { user } = useAuth();
   const qc = useQueryClient();
+
+  // Verifying posts the deposit to the books and cannot be undone.
+  const [verifying, setVerifying] = useState<Deposit | null>(null);
 
   const { data: pendingDeposits } = useQuery({
     queryKey: ["deposits", user?.activeGroupId, "pending"],
@@ -47,7 +55,7 @@ export default function Verify() {
               <div>
                 <p className="font-medium text-gray-800">{d.memberName}</p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {d.type} · Submitted {formatDate(d.createdAt)}
+                  {depositLabel(d.type, d.depositMonth, d.depositYear)} · Submitted {formatDate(d.createdAt)}
                 </p>
                 {d.notes && (
                   <p className="text-xs text-gray-500 mt-0.5 italic">
@@ -58,17 +66,16 @@ export default function Verify() {
               <div className="flex items-center gap-4">
                 <div className="text-right">
                   <p className="font-semibold text-gray-900">
-                    {formatCurrency(d.amount)}
+                    <Amount value={d.amount} side="credit" />
                   </p>
                 </div>
-                <Button
+                <IconButton
+                  icon="verify"
+                  label={verifyDepositMutation.variables === d.id && verifyDepositMutation.isPending ? "Verifying..." : "Verify deposit"}
                   variant="success"
-                  size="sm"
-                  onClick={() => verifyDepositMutation.mutate(d.id)}
+                  onClick={() => setVerifying(d)}
                   disabled={verifyDepositMutation.isPending}
-                >
-                  {verifyDepositMutation.isPending && verifyDepositMutation.variables === d.id ? "Verifying..." : "Verify"}
-                </Button>
+                />
               </div>
             </div>
           ))}
@@ -94,6 +101,19 @@ export default function Verify() {
           )}
         </div>
       </div>
+
+      {verifying && (
+        <ConfirmDialog
+          title="Verify this deposit?"
+          body={`This records ${formatCurrency(verifying.amount)} from ${verifying.memberName} in the group's books. It cannot be undone.`}
+          confirmLabel="Verify deposit"
+          busyLabel="Verifying..."
+          variant="success"
+          busy={verifyDepositMutation.isPending}
+          onConfirm={() => { verifyDepositMutation.mutate(verifying.id); setVerifying(null); }}
+          onCancel={() => setVerifying(null)}
+        />
+      )}
     </div>
   );
 }

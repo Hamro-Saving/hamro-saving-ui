@@ -5,6 +5,8 @@ import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
 import MemberTable from './MemberTable';
 import type { GroupRole, Member } from '../../api/types';
+import Select from '../../components/Select';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 type Tab = 'members' | 'non-members';
 
@@ -197,6 +199,7 @@ export default function Members() {
           loading={nmLoading}
           canEdit={canEdit}
           emptyLabel="No non-members found"
+          money="owed"
           onEdit={openEditNm}
           onDelete={n => setDeleteNmId(n.id)}
           onResend={r => resendMutation.mutate(r.id)}
@@ -255,10 +258,10 @@ export default function Members() {
               <div><label className="text-xs text-gray-600 font-medium">Address (optional)</label>
                 <input value={editForm.address} onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
               <div><label className="text-xs text-gray-600 font-medium">Role</label>
-                <select value={editForm.groupRole} onChange={e => setEditForm(f => ({ ...f, groupRole: e.target.value as GroupRole }))} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                <Select value={editForm.groupRole} onChange={e => setEditForm(f => ({ ...f, groupRole: e.target.value as GroupRole }))} className="mt-1 w-full">
                   <option value="Admin">Admin</option>
                   <option value="Member">Member</option>
-                </select></div>
+                </Select></div>
             </div>
             <div className="flex gap-3 mt-5">
               <Button className="flex-1" onClick={() => setEditMember(null)}>Cancel</Button>
@@ -272,18 +275,15 @@ export default function Members() {
 
       {/* Delete Member Confirm */}
       {deleteMemberId && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
-            <p className="text-gray-800 font-semibold mb-1">Delete Member?</p>
-            <p className="text-sm text-gray-500 mb-5">This will permanently delete the member. This action cannot be undone.</p>
-            <div className="flex gap-3">
-              <Button className="flex-1" onClick={() => setDeleteMemberId(null)}>Cancel</Button>
-              <Button variant="dangerSolid" className="flex-1" onClick={() => deleteMutation.mutate(deleteMemberId)} disabled={deleteMutation.isPending}>
-                {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Delete this member?"
+          body="This permanently removes the member and their access. It cannot be undone."
+          confirmLabel="Delete"
+          busyLabel="Deleting..."
+          busy={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(deleteMemberId)}
+          onCancel={() => setDeleteMemberId(null)}
+        />
       )}
 
       {/* Add Non-Member Modal */}
@@ -341,18 +341,15 @@ export default function Members() {
 
       {/* Delete Non-Member Confirm */}
       {deleteNmId && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
-            <p className="text-gray-800 font-semibold mb-1">Delete Non-Member?</p>
-            <p className="text-sm text-gray-500 mb-5">This will permanently delete the non-member. This action cannot be undone.</p>
-            <div className="flex gap-3">
-              <Button className="flex-1" onClick={() => setDeleteNmId(null)}>Cancel</Button>
-              <Button variant="dangerSolid" className="flex-1" onClick={() => deleteNmMutation.mutate(deleteNmId)} disabled={deleteNmMutation.isPending}>
-                {deleteNmMutation.isPending ? 'Deleting...' : 'Delete'}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Delete this non-member?"
+          body="This permanently removes the borrower. It cannot be undone."
+          confirmLabel="Delete"
+          busyLabel="Deleting..."
+          busy={deleteNmMutation.isPending}
+          onConfirm={() => deleteNmMutation.mutate(deleteNmId)}
+          onCancel={() => setDeleteNmId(null)}
+        />
       )}
     </div>
   );

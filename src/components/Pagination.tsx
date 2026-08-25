@@ -1,3 +1,5 @@
+import Select from './Select';
+
 type PaginationProps = {
   page: number;
   pageSize: number;
@@ -35,8 +37,8 @@ export default function Pagination({
         {onPageSizeChange && (
           <label className="inline-flex items-center gap-2">
             <span className="text-gray-600">Rows</span>
-            <select
-              className="border rounded-md px-2 py-1 text-sm"
+            <Select
+              size="sm"
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
             >
@@ -45,7 +47,7 @@ export default function Pagination({
                   {n}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
       </div>
