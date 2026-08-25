@@ -17,11 +17,13 @@ export function useLoanActions(loanId: string) {
 
   const approve = useMutation({ mutationFn: () => loansApi.approveLoan(loanId), onSuccess: invalidate });
   const decline = useMutation({ mutationFn: () => loansApi.declineLoan(loanId), onSuccess: invalidate });
-  const completeDisbursement = useMutation({ mutationFn: () => loansApi.completeDisbursement(loanId), onSuccess: invalidate });
+  const completeDisbursement = useMutation({ mutationFn: (disbursedOn?: string) => loansApi.completeDisbursement(loanId, disbursedOn), onSuccess: invalidate });
+  const forceDisburse = useMutation({ mutationFn: (disbursedOn?: string) => loansApi.forceDisburse(loanId, disbursedOn), onSuccess: invalidate });
   const cancel = useMutation({ mutationFn: () => loansApi.cancelLoan(loanId), onSuccess: invalidate });
   const verifyPayment = useMutation({ mutationFn: (paymentId: string) => loansApi.verifyPayment(paymentId), onSuccess: invalidate });
 
-  const busy = approve.isPending || decline.isPending || completeDisbursement.isPending || cancel.isPending;
+  const busy = approve.isPending || decline.isPending || completeDisbursement.isPending
+    || forceDisburse.isPending || cancel.isPending;
 
-  return { approve, decline, completeDisbursement, cancel, verifyPayment, busy };
+  return { approve, decline, completeDisbursement, forceDisburse, cancel, verifyPayment, busy };
 }

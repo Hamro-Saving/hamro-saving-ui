@@ -13,9 +13,12 @@ export default defineConfig({
   ],
   server: {
     port: parseInt(process.env.PORT || '5173'),
+    allowedHosts: ['idealist-animator-snoring.ngrok-free.dev'],
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL || 'http://localhost:5000',
+        // 127.0.0.1, not localhost: macOS AirPlay Receiver holds *:7000, so anything
+        // that does not arrive over loopback gets an empty 403 from AirTunes.
+        target: process.env.API_PROXY_TARGET || 'http://127.0.0.1:7000',
         changeOrigin: true,
       },
     },

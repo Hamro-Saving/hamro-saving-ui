@@ -10,6 +10,7 @@ export const TYPE_LABELS: Record<TransactionType, string> = {
   FixedDepositWithdrawal: 'Fixed deposit withdrawn',
   FixedDepositInterest: 'Fixed deposit interest',
   Expense: 'Expense',
+  OtherIncome: 'Other income',
 };
 
 export const TRANSACTION_TYPES = Object.keys(TYPE_LABELS) as TransactionType[];

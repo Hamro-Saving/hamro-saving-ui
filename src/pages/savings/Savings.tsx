@@ -27,7 +27,31 @@ import ConfirmDialog from '../../components/ConfirmDialog';
  * The type itself still exists — older deposits carry it and must keep displaying.
  */
 const DEPOSIT_TYPES: DepositType[] = ["MonthlyDeposit", "Other"];
-const MONTHLY_SAVING_AMOUNTS = [8000, 10000];
+const MONTHLY_SAVING_AMOUNTS = [8000, 12000];
+
+/**
+ * What this deposit was for. A monthly saving is identified by the BS period it covers;
+ * anything else only has the remark, so that carries the row on its own rather than
+ * sitting under an em dash.
+ */
+function DepositDescription({ deposit }: { deposit: Deposit }) {
+  const period =
+    deposit.depositMonth && deposit.depositYear
+      ? bsPeriod(deposit.depositMonth, deposit.depositYear)
+      : null;
+  const remarks = deposit.notes?.trim();
+
+  if (!period && !remarks) return <span className="text-gray-400">—</span>;
+
+  return (
+    <>
+      <p className="text-gray-700">{period ?? remarks}</p>
+      {period && remarks && (
+        <p className="text-[11px] leading-tight text-gray-400 mt-1">{remarks}</p>
+      )}
+    </>
+  );
+}
 
 function getFormErrors(form: {
   type: DepositType;
@@ -58,7 +82,7 @@ export default function Savings() {
   const [verifying, setVerifying] = useState<Deposit | null>(null);
   // Only while unverified: once in the books a deposit is corrected, not removed.
   const [deleting, setDeleting] = useState<Deposit | null>(null);
-  const [editDeposit, setEditDeposit] = useState<{ id: string; amount: string; notes: string } | null>(null);
+  const [editDeposit, setEditDeposit] = useState<{ id: string; amount: string; notes: string; depositDate: string } | null>(null);
   const [filterMonth, setFilterMonth] = useState("");
   const [filterVerified, setFilterVerified] = useState("");
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -122,8 +146,8 @@ export default function Savings() {
   }
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, amount, notes }: { id: string; amount: number; notes?: string }) =>
-      depositsApi.updateDeposit(id, { amount, notes }),
+    mutationFn: ({ id, amount, notes, depositDate }: { id: string; amount: number; notes?: string; depositDate: string }) =>
+      depositsApi.updateDeposit(id, { amount, notes, depositDate }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["deposits"] });
       qc.invalidateQueries({ queryKey: ["finance-summary"] });
@@ -398,6 +422,16 @@ export default function Savings() {
                 />
               </div>
               <div>
+                <label className="text-xs text-gray-600 font-medium">Deposit Date (AD)</label>
+                <input
+                  type="date"
+                  value={editDeposit.depositDate}
+                  max={todayIso()}
+                  onChange={(e) => setEditDeposit((d) => d && { ...d, depositDate: e.target.value })}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
                 <label className="text-xs text-gray-600 font-medium">Remarks <span className="text-gray-400">(optional)</span></label>
                 <textarea
                   value={editDeposit.notes}
@@ -414,8 +448,8 @@ export default function Savings() {
               <Button
                 variant="primary"
                 className="flex-1"
-                onClick={() => updateMutation.mutate({ id: editDeposit.id, amount: Number(editDeposit.amount), notes: editDeposit.notes || undefined })}
-                disabled={updateMutation.isPending || !editDeposit.amount || Number(editDeposit.amount) <= 0}
+                onClick={() => updateMutation.mutate({ id: editDeposit.id, amount: Number(editDeposit.amount), notes: editDeposit.notes || undefined, depositDate: editDeposit.depositDate })}
+                disabled={updateMutation.isPending || !editDeposit.amount || Number(editDeposit.amount) <= 0 || !editDeposit.depositDate}
               >
                 {updateMutation.isPending ? "Saving..." : "Save Changes"}
               </Button>
@@ -430,7 +464,8 @@ export default function Savings() {
             <tr>
               {[
                 "Member",
-                "Month/Year",
+                "Date",
+                "Description",
                 "Type",
                 "Amount",
                 "Actions",
@@ -447,7 +482,7 @@ export default function Savings() {
           <tbody className="divide-y divide-gray-50">
             {isLoading && (
               <tr>
-                <td colSpan={5} className="text-center py-10 text-gray-400">
+                <td colSpan={6} className="text-center py-10 text-gray-400">
                   Loading...
                 </td>
               </tr>
@@ -457,8 +492,11 @@ export default function Savings() {
                 <td className="px-5 py-3.5 font-medium text-gray-800">
                   {d.memberName}
                 </td>
+                <td className="px-5 py-3.5 text-gray-600 whitespace-nowrap">
+                  {formatDate(d.depositDate)}
+                </td>
                 <td className="px-5 py-3.5 text-gray-600">
-                  {d.depositMonth && d.depositYear ? bsPeriod(d.depositMonth, d.depositYear) : "—"}
+                  <DepositDescription deposit={d} />
                 </td>
                 <td className="px-5 py-3.5">
                   <span
@@ -492,7 +530,7 @@ export default function Savings() {
                         <IconButton
                           icon="edit"
                           label="Edit deposit"
-                          onClick={() => setEditDeposit({ id: d.id, amount: String(d.amount), notes: d.notes ?? "" })}
+                          onClick={() => setEditDeposit({ id: d.id, amount: String(d.amount), notes: d.notes ?? "", depositDate: d.depositDate.slice(0, 10) })}
                         />
                         <IconButton
                           icon="delete"
@@ -508,7 +546,7 @@ export default function Savings() {
             ))}
             {!isLoading && !deposits?.length && (
               <tr>
-                <td colSpan={5} className="text-center py-10 text-gray-400">
+                <td colSpan={6} className="text-center py-10 text-gray-400">
                   No deposits found
                 </td>
               </tr>

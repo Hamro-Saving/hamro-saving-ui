@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { AxiosError } from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authApi } from '../../api/auth';
 import type { SignupInfoResponse } from '../../api/types';
@@ -21,7 +22,13 @@ export default function Signup() {
     if (!token) { setInfoError('Invalid or missing signup link.'); return; }
     authApi.getSignupInfo(token)
       .then(setInfo)
-      .catch(() => setInfoError('This signup link is invalid or has expired.'));
+      // A link that the server rejected is genuinely spent; a request that never got
+      // an answer is our problem, not theirs, and must not read as an expired invite.
+      .catch((e: AxiosError) => setInfoError(
+        e.response
+          ? 'This signup link is invalid or has expired.'
+          : 'Could not reach the server. Please try again, or ask your admin for a fresh invite.',
+      ));
   }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {

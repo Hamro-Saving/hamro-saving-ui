@@ -4,7 +4,7 @@ import { financeApi } from '../../api/finance';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
 import { formatCurrency, formatDate, todayIso } from '../../utils/format';
-import { lateJoinerInterestApi } from '../../api/finance';
+import { otherIncomingFundsApi } from '../../api/finance';
 import Select from '../../components/Select';
 import { membersApi } from '../../api/groups';
 import type { FixedDeposit } from '../../api/types';
@@ -49,11 +49,11 @@ function FieldError({ message }: { message?: string }) {
 export default function Finance() {
   const { user, isGroupAdmin } = useAuth();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<'expenses' | 'fixed-deposits' | 'late-joiner'>('expenses');
+  const [tab, setTab] = useState<'expenses' | 'fixed-deposits' | 'other-income'>('expenses');
 
   // What a member who joined late paid to catch up. Income, so there is no cash limit
   // on it — the group is receiving rather than committing.
-  const [ljForm, setLjForm] = useState({ memberId: '', amount: '', paidDate: todayIso(), notes: '' });
+  const [ljForm, setLjForm] = useState({ memberId: '', amount: '', paidDate: todayIso(), remarks: '' });
   const [ljError, setLjError] = useState('');
   const [showAddLj, setShowAddLj] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -73,9 +73,9 @@ export default function Finance() {
     queryKey: ['fixed-deposits', user?.activeGroupId],
     queryFn: () => financeApi.getFixedDeposits(),
   });
-  const { data: lateJoiner, isLoading: ljLoading } = useQuery({
-    queryKey: ['late-joiner-interest', user?.activeGroupId],
-    queryFn: () => lateJoinerInterestApi.getAll(),
+  const { data: otherIncome, isLoading: ljLoading } = useQuery({
+    queryKey: ['other-incoming-funds', user?.activeGroupId],
+    queryFn: () => otherIncomingFundsApi.getAll(),
   });
   const { data: members } = useQuery({
     queryKey: ['members', user?.activeGroupId],
@@ -91,21 +91,21 @@ export default function Finance() {
     setSaveError(e.response?.data?.detail ?? e.response?.data?.title ?? 'Could not save. Please try again.');
 
   const ljMutation = useMutation({
-    mutationFn: () => lateJoinerInterestApi.record({
+    mutationFn: () => otherIncomingFundsApi.record({
       memberId: ljForm.memberId,
       amount: Number(ljForm.amount),
       paidDate: ljForm.paidDate,
-      notes: ljForm.notes || null,
+      remarks: ljForm.remarks.trim(),
     }),
     onSuccess: () => {
       // Income, so it moves the summary, the ledger and the trial balance together.
-      for (const k of ['late-joiner-interest', 'finance-summary', 'transactions', 'trial-balance']) {
+      for (const k of ['other-incoming-funds', 'finance-summary', 'transactions', 'trial-balance']) {
         qc.invalidateQueries({ queryKey: [k] });
       }
       setShowAddLj(false);
     },
     onError: (e: { response?: { data?: { detail?: string } } }) =>
-      setLjError(e.response?.data?.detail ?? 'Could not record the interest'),
+      setLjError(e.response?.data?.detail ?? 'Could not record the incoming funds'),
   });
 
   const expMutation = useMutation({
@@ -153,8 +153,8 @@ export default function Finance() {
   };
 
   const openAdd = () => {
-    if (tab === 'late-joiner') {
-      setLjForm({ memberId: '', amount: '', paidDate: todayIso(), notes: '' });
+    if (tab === 'other-income') {
+      setLjForm({ memberId: '', amount: '', paidDate: todayIso(), remarks: '' });
       setLjError('');
       setShowAddLj(true);
       return;
@@ -190,7 +190,7 @@ export default function Finance() {
         {isGroupAdmin && (
           <Button variant="primary" onClick={openAdd}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Add {tab === 'expenses' ? 'Expense' : tab === 'fixed-deposits' ? 'Fixed Deposit' : 'Interest'}
+            Add {tab === 'expenses' ? 'Expense' : tab === 'fixed-deposits' ? 'Fixed Deposit' : 'Fund'}
           </Button>
         )}
       </div>
@@ -202,8 +202,8 @@ export default function Finance() {
         <button onClick={() => setTab('fixed-deposits')} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === 'fixed-deposits' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
           Fixed Deposits ({fds?.length ?? 0})
         </button>
-        <button onClick={() => setTab('late-joiner')} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === 'late-joiner' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
-          Late Joiner Interest ({lateJoiner?.length ?? 0})
+        <button onClick={() => setTab('other-income')} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === 'other-income' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+          Other Incoming Funds ({otherIncome?.length ?? 0})
         </button>
       </div>
 
@@ -439,17 +439,18 @@ export default function Finance() {
         </div>
       )}
 
-      {tab === 'late-joiner' && (
+      {tab === 'other-income' && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 text-xs text-gray-500">
-            What members who joined after the group started paid to catch up. This is income
-            to the group, not savings owed back to them.
+            Money in that is neither savings nor a loan repayment — late joiner interest, a
+            fine, a refund. It is income to the group, not savings owed back, so the remark is
+            what says which kind it was.
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  {['Member', 'Paid on', 'Note', 'Amount'].map((h, i) => (
+                  {['Member', 'Paid on', 'Remarks', 'Amount'].map((h, i) => (
                     <th key={h} className={`px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap ${i === 3 ? 'text-right' : 'text-left'}`}>
                       {h}
                     </th>
@@ -460,22 +461,22 @@ export default function Finance() {
                 {ljLoading && (
                   <tr><td colSpan={4} className="text-center py-10 text-gray-400">Loading...</td></tr>
                 )}
-                {!ljLoading && (lateJoiner ?? []).map(r => (
+                {!ljLoading && (otherIncome ?? []).map(r => (
                   <tr key={r.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3.5 font-medium text-gray-800">{r.memberName}</td>
                     <td className="px-5 py-3.5 text-gray-500 whitespace-nowrap">{formatDate(r.paidDate)}</td>
-                    <td className="px-5 py-3.5 text-gray-600">{r.notes || '—'}</td>
+                    <td className="px-5 py-3.5 text-gray-600">{r.remarks}</td>
                     <td className="px-5 py-3.5 text-right"><Amount value={r.amount} side="credit" /></td>
                   </tr>
                 ))}
-                {!ljLoading && !lateJoiner?.length && (
-                  <tr><td colSpan={4} className="text-center py-10 text-gray-400">No late joiner interest recorded</td></tr>
+                {!ljLoading && !otherIncome?.length && (
+                  <tr><td colSpan={4} className="text-center py-10 text-gray-400">No incoming funds recorded</td></tr>
                 )}
-                {!!lateJoiner?.length && (
+                {!!otherIncome?.length && (
                   <tr className="bg-gray-50 font-semibold">
                     <td className="px-5 py-3" colSpan={3}>Total</td>
                     <td className="px-5 py-3 text-right">
-                      <Amount value={lateJoiner.reduce((sum, r) => sum + r.amount, 0)} side="credit" />
+                      <Amount value={otherIncome.reduce((sum, r) => sum + r.amount, 0)} side="credit" />
                     </td>
                   </tr>
                 )}
@@ -488,7 +489,7 @@ export default function Finance() {
       {showAddLj && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Record Late Joiner Interest</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Record Incoming Funds</h2>
             {ljError && <p className="text-red-600 text-sm mb-3 bg-red-50 p-2 rounded">{ljError}</p>}
             <div className="space-y-3">
               <div>
@@ -521,12 +522,12 @@ export default function Finance() {
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-600 font-medium">Note (optional)</label>
+                <label className="text-xs text-gray-600 font-medium">Remarks</label>
                 <input
-                  value={ljForm.notes}
-                  onChange={e => setLjForm(f => ({ ...f, notes: e.target.value }))}
+                  value={ljForm.remarks}
+                  onChange={e => setLjForm(f => ({ ...f, remarks: e.target.value }))}
                   className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  placeholder="e.g. joined in Bhadra 2082"
+                  placeholder="e.g. late joiner interest, fine, refund"
                 />
               </div>
             </div>
@@ -535,7 +536,7 @@ export default function Finance() {
               <Button
                 variant="primary"
                 className="flex-1"
-                disabled={ljMutation.isPending || !ljForm.memberId || !ljForm.amount}
+                disabled={ljMutation.isPending || !ljForm.memberId || !ljForm.amount || !ljForm.remarks.trim()}
                 onClick={() => { setLjError(''); ljMutation.mutate(); }}
               >
                 {ljMutation.isPending ? 'Saving...' : 'Record'}

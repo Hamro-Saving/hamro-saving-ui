@@ -131,6 +131,14 @@ export default function Loans() {
                     </button>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[loan.status]}`}>{loan.status}</span>
                     <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">{loan.borrowerType}</span>
+                    {loan.isForceDisbursed && (
+                      <span
+                        className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800"
+                        title="Paid out by an admin without the members' approval"
+                      >
+                        Force disbursed
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {loan.disbursedAt ? `Disbursed ${formatDate(loan.disbursedAt)}` : `Starts ${formatDate(loan.startDate)}`}

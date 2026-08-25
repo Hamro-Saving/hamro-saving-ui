@@ -4,7 +4,42 @@ import { NAV_ITEMS, satisfies } from '../routes';
 import GroupSwitcher from './GroupSwitcher';
 import Logo from './Logo';
 
-export default function Sidebar() {
+interface SidebarProps {
+  /** Mobile only: whether the drawer is showing. The desktop column ignores it. */
+  open?: boolean;
+  onClose?: () => void;
+}
+
+/**
+ * Navigation. Below `md` there is no room for a permanent column, so the same panel
+ * slides in over the page instead of disappearing — a phone with no nav at all can
+ * only be steered by typing URLs.
+ */
+export default function Sidebar({ open = false, onClose }: SidebarProps) {
+  return (
+    <>
+      <aside className="w-64 flex-shrink-0 bg-gray-900 text-white hidden md:flex flex-col">
+        <SidebarPanel />
+      </aside>
+
+      {/* Backdrop: tapping outside the drawer is the usual way back out. */}
+      <div
+        className={`fixed inset-0 z-40 bg-black/50 transition-opacity md:hidden ${open ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-gray-900 text-white transition-transform duration-200 md:hidden ${open ? 'translate-x-0' : '-translate-x-full'}`}
+        aria-hidden={!open}
+      >
+        <SidebarPanel onNavigate={onClose} />
+      </aside>
+    </>
+  );
+}
+
+function SidebarPanel({ onNavigate }: { onNavigate?: () => void }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -19,7 +54,7 @@ export default function Sidebar() {
     .join(' · ');
 
   return (
-    <aside className="w-64 flex-shrink-0 bg-gray-900 text-white hidden md:flex flex-col">
+    <>
       <div className="px-4 py-4 border-b border-gray-700/50">
         <Logo variant="dark" size="lg" text={activeMembership?.groupName} />
       </div>
@@ -28,7 +63,7 @@ export default function Sidebar() {
         {visibleItems.map(item => {
           const active = pathname === item.path || pathname.startsWith(item.path + '/');
           return (
-            <button key={item.path} onClick={() => navigate(item.path)}
+            <button key={item.path} onClick={() => { navigate(item.path); onNavigate?.(); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${active ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>
               {item.icon}{item.label}
             </button>
@@ -53,6 +88,6 @@ export default function Sidebar() {
           Sign out
         </button>
       </div>
-    </aside>
+    </>
   );
 }

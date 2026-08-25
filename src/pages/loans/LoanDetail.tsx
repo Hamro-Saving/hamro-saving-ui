@@ -158,7 +158,9 @@ export default function LoanDetail() {
                   <td className="px-5 py-3 text-right"><Amount value={p.amount} side="credit" /></td>
                   <td className="px-5 py-3 text-right">
                     <span className="text-gray-800">{formatCurrency(p.outstandingPrincipalAfter)}</span>
-                    {p.unpaidInterestAfter > 0 && (
+                    {/* Under a rupee is not a debt the group will chase — and it renders as
+                        "NPR 0" anyway, since amounts are shown in whole rupees. */}
+                    {p.unpaidInterestAfter >= 1 && (
                       <span className="block text-[11px] text-amber-600">+ {formatCurrency(p.unpaidInterestAfter)} interest left</span>
                     )}
                   </td>

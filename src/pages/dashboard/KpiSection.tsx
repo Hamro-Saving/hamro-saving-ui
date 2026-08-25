@@ -13,14 +13,23 @@ export default function KpiSection({
   memberCount,
   activeLoanCount,
 }: KpiSectionProps) {
+  // What the group has actually gathered: everything taken in — member savings, interest
+  // earned on loans and fixed deposits, and other income — less what it has spent running
+  // itself. Interest and expenses each have their own tile as well, so they are deliberately
+  // counted twice: this figure is the headline, those break parts of it out.
+  const totalCollected =
+    (summary?.totalSavingsCollected ?? 0)
+    + (summary?.totalInterestCollected ?? 0)
+    - (summary?.totalExpenses ?? 0);
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <KpiCard
         label="Total Collection"
         side="credit"
-        value={formatCurrency(summary?.totalSavingsCollected ?? 0)}
+        value={formatCurrency(totalCollected)}
         color="blue"
-        sub="All deposits"
+        sub="Deposits and income, less expenses"
         icon={
           <svg
             className="w-5 h-5"

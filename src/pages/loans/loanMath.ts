@@ -25,6 +25,12 @@ export const loanAmountSide = (loan: Loan): LedgerSide => (isLive(loan) ? 'debit
 
 export const round2 = (v: number) => Math.round(v * 100) / 100;
 
+/**
+ * Interest is settled in whole rupees. The daily accrual produces paisa that nobody hands
+ * over, and the group is not going to chase them, so what gets recorded is the round figure.
+ */
+export const wholeRupees = (v: number) => Math.round(v);
+
 /** Whole days between the loan's last settled date and a YYYY-MM-DD payment date, counted in UTC like the API. */
 export function daysSinceLastAccrual(lastAccrualDate: string, dateOnly: string): number {
   const last = new Date(lastAccrualDate);

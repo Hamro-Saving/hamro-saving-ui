@@ -3,20 +3,20 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { loansApi } from '../../api/finance';
 import Button from '../../components/Button';
 import { formatCurrency, formatDate, todayIso } from '../../utils/format';
-import { daysSinceLastAccrual, interestAccruedOn } from './loanMath';
+import { daysSinceLastAccrual, interestAccruedOn, wholeRupees } from './loanMath';
 import type { Loan } from '../../api/types';
 import Amount from '../../components/Amount';
 
 /**
  * Records a payment against a loan. Interest is pre-filled with exactly what the loan has
- * accrued to the chosen date; the admin can override it, and the API checks it again.
+ * accrued to the chosen date; the admin can override it in either direction.
  */
 export default function RecordPaymentModal({ loan, onClose }: { loan: Loan; onClose: () => void }) {
   const qc = useQueryClient();
   const [error, setError] = useState('');
   const [form, setForm] = useState({
     paidDate: todayIso(),
-    interestAmount: String(interestAccruedOn(loan, todayIso())),
+    interestAmount: String(wholeRupees(interestAccruedOn(loan, todayIso()))),
     principalAmount: '',
     notes: '',
     interestEdited: false,
@@ -46,7 +46,7 @@ export default function RecordPaymentModal({ loan, onClose }: { loan: Loan; onCl
     setForm(f => ({
       ...f,
       paidDate,
-      interestAmount: f.interestEdited ? f.interestAmount : String(interestAccruedOn(loan, paidDate)),
+      interestAmount: f.interestEdited ? f.interestAmount : String(wholeRupees(interestAccruedOn(loan, paidDate))),
     }));
 
   const accrued = interestAccruedOn(loan, form.paidDate);
@@ -54,7 +54,10 @@ export default function RecordPaymentModal({ loan, onClose }: { loan: Loan; onCl
   const interest = Number(form.interestAmount || 0);
   const principal = Number(form.principalAmount || 0);
   const total = interest + principal;
-  const overInterest = interest > accrued + 0.01;
+  // Paying more interest than has accrued is allowed — a round figure, or the rate the group
+  // settled by hand. Worth pointing out, since it is usually a typo, but never blocked. The
+  // slack is a full rupee so that rounding the suggested figure up never trips the warning.
+  const aheadOnInterest = interest >= accrued + 1;
   const overPrincipal = principal > loan.outstandingPrincipal + 0.01;
 
   return (
@@ -92,12 +95,16 @@ export default function RecordPaymentModal({ loan, onClose }: { loan: Loan; onCl
               <label className="text-xs text-gray-600 font-medium">Interest</label>
               <input
                 type="number"
-                step="0.01"
+                step="1"
                 value={form.interestAmount}
                 onChange={e => setForm(f => ({ ...f, interestAmount: e.target.value, interestEdited: true }))}
-                className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${overInterest ? 'border-red-400' : 'border-gray-300'}`}
+                className={`mt-1 w-full border rounded-lg px-3 py-2 text-sm ${aheadOnInterest ? 'border-amber-400' : 'border-gray-300'}`}
               />
-              {overInterest && <p className="text-[11px] text-red-600 mt-0.5">More than has accrued</p>}
+              {aheadOnInterest && (
+                <p className="text-[11px] text-amber-600 mt-0.5">
+                  {formatCurrency(interest - accrued)} more than has accrued
+                </p>
+              )}
             </div>
             <div>
               <label className="text-xs text-gray-600 font-medium">Principal</label>
@@ -130,7 +137,7 @@ export default function RecordPaymentModal({ loan, onClose }: { loan: Loan; onCl
           <Button
             variant="primary"
             className="flex-1"
-            disabled={record.isPending || total <= 0 || overInterest || overPrincipal}
+            disabled={record.isPending || total <= 0 || overPrincipal}
             onClick={() => { setError(''); record.mutate(); }}>
             {record.isPending ? 'Saving...' : 'Record Payment'}
           </Button>

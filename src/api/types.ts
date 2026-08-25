@@ -49,7 +49,7 @@ export type LoanPaymentType = 'Principal' | 'Interest' | 'Mixed';
 export type BorrowerType = 'Member' | 'NonMember';
 
 export interface ApproverInfo { approverId: string; approverName: string; approvedAt: string; }
-export interface Loan { id: string; borrowerId: string; borrowerName: string; borrowerType: BorrowerType; groupId: string; amount: number; interestRate: number; outstandingPrincipal: number; accruedInterest: number; payoffAmount: number; dailyInterest: number; unpaidInterest: number; totalPrincipalPaid: number; totalInterestPaid: number; disbursedAt?: string; lastAccrualDate?: string; startDate: string; dueDate?: string; status: LoanStatus; notes?: string; disbursedById?: string; approvalCount: number; declineCount: number; requiredApprovals: number; requiredDeclines: number; hasCurrentUserApproved: boolean; hasCurrentUserDeclined: boolean; approvers: ApproverInfo[]; decliners: ApproverInfo[]; createdAt: string; }
+export interface Loan { id: string; borrowerId: string; borrowerName: string; borrowerType: BorrowerType; groupId: string; amount: number; interestRate: number; outstandingPrincipal: number; accruedInterest: number; payoffAmount: number; dailyInterest: number; unpaidInterest: number; totalPrincipalPaid: number; totalInterestPaid: number; disbursedAt?: string; lastAccrualDate?: string; startDate: string; dueDate?: string; status: LoanStatus; notes?: string; disbursedById?: string; isForceDisbursed: boolean; approvalCount: number; declineCount: number; requiredApprovals: number; requiredDeclines: number; hasCurrentUserApproved: boolean; hasCurrentUserDeclined: boolean; approvers: ApproverInfo[]; decliners: ApproverInfo[]; createdAt: string; }
 
 export interface LoanPayment { id: string; loanId: string; amount: number; principalAmount: number; interestAmount: number; paidDate: string; paymentType: LoanPaymentType; notes?: string; interestOwedBefore: number; daysAccrued: number; outstandingPrincipalAfter: number; unpaidInterestAfter: number; isVerified: boolean; verifiedAt?: string; createdAt: string; }
 
@@ -76,7 +76,8 @@ export type LedgerAccount = 'Cash' | 'MemberSavings' | 'LoanReceivable' | 'Inter
 
 export type TransactionType =
   | 'Deposit' | 'LoanDisbursement' | 'LoanPrincipalPayment' | 'LoanInterestPayment'
-  | 'FixedDepositPlaced' | 'FixedDepositWithdrawal' | 'FixedDepositInterest' | 'Expense';
+  | 'FixedDepositPlaced' | 'FixedDepositWithdrawal' | 'FixedDepositInterest' | 'Expense'
+  | 'OtherIncome';
 
 /** One double-entry line: equal value leaving one account and arriving in another. */
 export interface Transaction {
@@ -123,13 +124,17 @@ export interface PagedResult<T> {
   totalPages: number;
 }
 
-/** Interest a member who joined late paid to catch up with the group. Income, not savings. */
-export interface LateJoinerInterest {
+/**
+ * Money in that is neither savings nor a loan repayment — late joiner interest, a fine, a
+ * refund. Income, not savings: the group does not owe it back. Remarks are required, since
+ * they are what says which kind of income it was.
+ */
+export interface OtherIncomingFund {
   id: string;
   memberId: string;
   memberName: string;
   amount: number;
   paidDate: string;
-  notes?: string | null;
+  remarks: string;
   createdAt: string;
 }
