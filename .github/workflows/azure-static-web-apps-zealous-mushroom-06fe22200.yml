@@ -44,6 +44,24 @@ jobs:
           VITE_API_URL: ${{ vars.VITE_API_URL || 'https://sathi-bachat-api-d9ccfageb5cpffcp.southeastasia-01.azurewebsites.net' }}
         run: npm run build
 
+      # This Static Web App has deploymentAuthPolicy: GitHub, so it accepts OIDC only
+      # and rejects every API key with "No matching Static Web App was found or the api
+      # key was invalid". The runner warns that github_id_token is an unexpected input
+      # -- the action.yml it resolves is older than the container -- but the container
+      # does read INPUT_GITHUB_ID_TOKEN, so the warning is cosmetic and these steps are
+      # load-bearing. Do not remove them.
+      - name: Install OIDC Client from Core Package
+        run: npm install @actions/core@1.6.0 @actions/http-client
+
+      - name: Get Id Token
+        uses: actions/github-script@v7
+        id: idtoken
+        with:
+          script: |
+            const coredemo = require('@actions/core')
+            return await coredemo.getIDToken()
+          result-encoding: string
+
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
@@ -54,6 +72,7 @@ jobs:
           api_location: ""
           output_location: "dist"
           skip_app_build: true
+          github_id_token: ${{ steps.idtoken.outputs.result }}
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
