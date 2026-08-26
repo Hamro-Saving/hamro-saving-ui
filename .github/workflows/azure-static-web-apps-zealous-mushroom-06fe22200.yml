@@ -68,9 +68,12 @@ jobs:
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ZEALOUS_MUSHROOM_06FE22200 }}
           action: "upload"
-          app_location: "/"
+          # With skip_app_build the build output is not derived, so app_location IS the
+          # artifact folder and output_location is ignored. Pointing app_location at "/"
+          # published the whole repo root -- /src, /package.json and /vite.config.ts were
+          # served publicly while /assets 404'd. It must point at dist.
+          app_location: "dist"
           api_location: ""
-          output_location: "dist"
           skip_app_build: true
           github_id_token: ${{ steps.idtoken.outputs.result }}
 
