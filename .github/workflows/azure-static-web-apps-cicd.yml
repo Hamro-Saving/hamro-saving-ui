@@ -1,0 +1,78 @@
+name: Azure Static Web Apps CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - main
+
+jobs:
+  build_and_deploy_job:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    name: Build and Deploy Job
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # Vite 7 requires ^20.19.0 || >=22.12.0. Oryx's default is older than that,
+          # so we build here and hand Azure the finished dist/ instead.
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          # Baked into the bundle at build time, so it is public either way -- no secret.
+          # Set a VITE_API_URL repo variable to point a deploy somewhere else.
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://sathi-bachat-api-d9ccfageb5cpffcp.southeastasia-01.azurewebsites.net' }}
+        run: npm run build
+
+      - name: Install OIDC Client from Core Package
+        run: npm install @actions/core@1.6.0 @actions/http-client
+
+      - name: Get Id Token
+        uses: actions/github-script@v7
+        id: idtoken
+        with:
+          script: |
+            const coredemo = require('@actions/core')
+            return await coredemo.getIDToken()
+          result-encoding: string
+
+      - name: Build And Deploy
+        id: builddeploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ZEALOUS_MUSHROOM_06FE22200 }}
+          action: "upload"
+          app_location: "/"
+          api_location: ""
+          output_location: "dist"
+          skip_app_build: true
+          skip_api_build: true
+          github_id_token: ${{ steps.idtoken.outputs.result }}
+
+  close_pull_request_job:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    name: Close Pull Request Job
+    steps:
+      - name: Close Pull Request
+        id: closepullrequest
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ZEALOUS_MUSHROOM_06FE22200 }}
+          action: "close"
