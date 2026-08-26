@@ -15,6 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     name: Build and Deploy Job
     permissions:
+      # The deploy container resolves which Static Web App to target from the OIDC
+      # workflow reference, so it needs to mint an id token. That reference also
+      # embeds this file's name -- renaming it fails with "Could not determine the
+      # Static Web App from the GitHub OIDC workflow reference".
       id-token: write
       contents: read
     steps:
@@ -40,18 +44,6 @@ jobs:
           VITE_API_URL: ${{ vars.VITE_API_URL || 'https://sathi-bachat-api-d9ccfageb5cpffcp.southeastasia-01.azurewebsites.net' }}
         run: npm run build
 
-      - name: Install OIDC Client from Core Package
-        run: npm install @actions/core@1.6.0 @actions/http-client
-
-      - name: Get Id Token
-        uses: actions/github-script@v7
-        id: idtoken
-        with:
-          script: |
-            const coredemo = require('@actions/core')
-            return await coredemo.getIDToken()
-          result-encoding: string
-
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
@@ -62,8 +54,6 @@ jobs:
           api_location: ""
           output_location: "dist"
           skip_app_build: true
-          skip_api_build: true
-          github_id_token: ${{ steps.idtoken.outputs.result }}
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
