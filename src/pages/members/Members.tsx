@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { membersApi } from '../../api/groups';
 import { useAuth } from '../../context/AuthContext';
@@ -10,8 +11,12 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 
 type Tab = 'members' | 'non-members';
 
+const emptyMember = () => ({ firstName: '', lastName: '', email: '', phoneNumber: '', address: '' });
+const emptyNonMember = () => ({ fullName: '', email: '', phoneNumber: '', address: '' });
+
 export default function Members() {
   const { user, isGroupAdmin } = useAuth();
+  const navigate = useNavigate();
   // Editing the roster is group business, so it is the group role that decides.
   const canEdit = isGroupAdmin;
   const qc = useQueryClient();
@@ -20,7 +25,7 @@ export default function Members() {
 
   // Add member state
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ firstName: '', lastName: '', email: '', phoneNumber: '', address: '' });
+  const [addForm, setAddForm] = useState(emptyMember);
   const [addError, setAddError] = useState('');
 
   // Edit member state
@@ -33,7 +38,7 @@ export default function Members() {
 
   // Add non-member state
   const [showAddNm, setShowAddNm] = useState(false);
-  const [addNmForm, setAddNmForm] = useState({ fullName: '', email: '', phoneNumber: '', address: '' });
+  const [addNmForm, setAddNmForm] = useState(emptyNonMember);
   const [addNmError, setAddNmError] = useState('');
 
   // Edit non-member state
@@ -65,7 +70,7 @@ export default function Members() {
       phoneNumber: addForm.phoneNumber || null,
       address: addForm.address || null,
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['members'] }); setShowAdd(false); setAddForm({ firstName: '', lastName: '', email: '', phoneNumber: '', address: '' }); setAddError(''); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['members'] }); setShowAdd(false); },
     onError: (e: { response?: { data?: { detail?: string } } }) => setAddError(e.response?.data?.detail ?? 'Failed to add member'),
   });
 
@@ -121,7 +126,7 @@ export default function Members() {
       address: addNmForm.address || null,
       groupId: user?.activeGroupId,
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['non-members'] }); setShowAddNm(false); setAddNmForm({ fullName: '', email: '', phoneNumber: '', address: '' }); setAddNmError(''); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['non-members'] }); setShowAddNm(false); },
     onError: (e: { response?: { data?: { detail?: string } } }) => setAddNmError(e.response?.data?.detail ?? 'Failed to add non-member'),
   });
 
@@ -141,6 +146,10 @@ export default function Members() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['non-members'] }); setDeleteNmId(null); },
   });
 
+  // Always from a blank form: whatever was typed last time — saved or abandoned — is gone.
+  const openAdd = () => { setAddForm(emptyMember()); setAddError(''); setShowAdd(true); };
+  const openAddNm = () => { setAddNmForm(emptyNonMember()); setAddNmError(''); setShowAddNm(true); };
+
   const openEditMember = (m: Member) => { setEditMember(m); setEditForm({ firstName: m.firstName, lastName: m.lastName ?? '', email: m.email ?? '', phoneNumber: m.phoneNumber ?? '', address: m.address ?? '', groupRole: m.groupRole }); setEditError(''); };
   const openEditNm = (n: Member) => { setEditNm(n); setEditNmForm({ fullName: n.firstName, email: n.email ?? '', phoneNumber: n.phoneNumber ?? '', address: n.address ?? '' }); setEditNmError(''); };
 
@@ -155,7 +164,7 @@ export default function Members() {
         {canEdit && (
           <Button
             variant="primary"
-            onClick={() => tab === 'members' ? setShowAdd(true) : setShowAddNm(true)}
+            onClick={() => tab === 'members' ? openAdd() : openAddNm()}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             Add {tab === 'members' ? 'Member' : 'Non-Member'}
@@ -187,6 +196,7 @@ export default function Members() {
           canEdit={canEdit}
           emptyLabel="No members found"
           onEdit={openEditMember}
+          onOpen={m => navigate(`/members/${m.id}`)}
           onDelete={m => setDeleteMemberId(m.id)}
           onResend={r => resendMutation.mutate(r.id)}
           resendingId={resendMutation.isPending ? resendMutation.variables : null}
@@ -201,6 +211,7 @@ export default function Members() {
           emptyLabel="No non-members found"
           money="owed"
           onEdit={openEditNm}
+          onOpen={n => navigate(`/members/${n.id}`)}
           onDelete={n => setDeleteNmId(n.id)}
           onResend={r => resendMutation.mutate(r.id)}
           resendingId={resendMutation.isPending ? resendMutation.variables : null}

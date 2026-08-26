@@ -48,6 +48,8 @@ interface MemberTableProps {
   onEdit: (member: Member) => void;
   onDelete: (member: Member) => void;
   onResend: (member: Member) => void;
+  /** Opening a person's summary. The row actions are excluded from it. */
+  onOpen: (member: Member) => void;
   resendingId?: string | null;
 }
 
@@ -55,7 +57,7 @@ interface MemberTableProps {
  * The group roster. Members and non-members are the same record differing only in role,
  * so they share one table rather than two that drift apart.
  */
-export default function MemberTable({ rows, loading, canEdit, emptyLabel, onEdit, onDelete, onResend, resendingId, money = 'deposited' }: MemberTableProps) {
+export default function MemberTable({ rows, loading, canEdit, emptyLabel, onEdit, onDelete, onResend, onOpen, resendingId, money = 'deposited' }: MemberTableProps) {
   const moneyHeader = money === 'owed' ? 'Owed' : 'Deposited';
   const headers = ['Name', 'Contact', moneyHeader, 'Status', ...(canEdit ? ['Actions'] : [])];
 
@@ -81,7 +83,14 @@ export default function MemberTable({ rows, loading, canEdit, emptyLabel, onEdit
             )}
 
             {!loading && rows.map(m => (
-              <tr key={m.id} className="hover:bg-gray-50 transition-colors">
+              <tr
+                key={m.id}
+                onClick={() => onOpen(m)}
+                onKeyDown={e => { if (e.key === 'Enter') onOpen(m); }}
+                tabIndex={0}
+                aria-label={`Open ${m.fullName}'s summary`}
+                className="cursor-pointer hover:bg-gray-50 transition-colors focus:bg-gray-50 focus:outline-none"
+              >
                 <td className="px-5 py-3.5">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 flex-shrink-0 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-xs">
@@ -105,7 +114,7 @@ export default function MemberTable({ rows, loading, canEdit, emptyLabel, onEdit
                             icon="resend"
                             label={resendingId === m.id ? 'Sending invite...' : 'Resend invite'}
                             variant="warning"
-                            onClick={() => onResend(m)}
+                            onClick={e => { e.stopPropagation(); onResend(m); }}
                             disabled={resendingId === m.id}
                           />
                         )}
@@ -146,9 +155,9 @@ export default function MemberTable({ rows, loading, canEdit, emptyLabel, onEdit
                 {canEdit && (
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
-                      <IconButton icon="edit" label="Edit member" onClick={() => onEdit(m)} />
+                      <IconButton icon="edit" label="Edit member" onClick={e => { e.stopPropagation(); onEdit(m); }} />
                       {m.isActive && (
-                        <IconButton icon="delete" label="Delete member" variant="danger" onClick={() => onDelete(m)} />
+                        <IconButton icon="delete" label="Delete member" variant="danger" onClick={e => { e.stopPropagation(); onDelete(m); }} />
                       )}
                     </div>
                   </td>

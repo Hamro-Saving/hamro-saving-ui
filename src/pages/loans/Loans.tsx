@@ -5,7 +5,7 @@ import { loansApi } from '../../api/finance';
 import { membersApi } from '../../api/groups';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
-import { formatCurrency, formatDate } from '../../utils/format';
+import { formatCurrency, formatDate, todayIso } from '../../utils/format';
 import { STATUS_COLORS, LOAN_STATUS_FILTERS, isLive, loanAmountSide } from './loanMath';
 import LoanWorkflowPanel from './LoanWorkflowPanel';
 import RecordPaymentModal from './RecordPaymentModal';
@@ -13,6 +13,20 @@ import type { BorrowerType, Loan } from '../../api/types';
 import Select from '../../components/Select';
 import Amount from '../../components/Amount';
 import ConfirmDialog from '../../components/ConfirmDialog';
+
+/**
+ * A blank loan application. Built fresh on every open rather than held as a constant, so
+ * the default start date is today and not the day the tab happened to be loaded.
+ */
+const emptyLoan = () => ({
+  borrowerId: '',
+  borrowerType: 'Member',
+  amount: '',
+  interestRate: '',
+  startDate: todayIso(),
+  dueDate: '',
+  notes: '',
+});
 
 export default function Loans() {
   const { user, isGroupAdmin } = useAuth();
@@ -27,15 +41,12 @@ export default function Loans() {
   const [deletingLoan, setDeletingLoan] = useState<Loan | null>(null);
   const [payingLoan, setPayingLoan] = useState<Loan | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
-  const [form, setForm] = useState({ borrowerId: '', borrowerType: 'Member', amount: '', interestRate: '', startDate: new Date().toISOString().slice(0, 10), dueDate: '', notes: '' });
+  const [form, setForm] = useState(emptyLoan);
 
+  // Always from a blank form: whatever was typed last time — saved or abandoned — is gone.
   const openApply = (forSelf: boolean) => {
     setApplyForSelf(forSelf);
-    setForm(f => ({
-      ...f,
-      borrowerType: 'Member',
-      borrowerId: forSelf && user?.memberId ? user.memberId : '',
-    }));
+    setForm({ ...emptyLoan(), borrowerId: forSelf && user?.memberId ? user.memberId : '' });
     setShowAdd(true);
   };
 

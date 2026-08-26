@@ -8,7 +8,6 @@ import {
   formatCurrency,
   formatDate,
   BS_MONTHS,
-  bsPeriod,
   currentBsDate,
   todayIso,
 } from "../../utils/format";
@@ -17,6 +16,7 @@ import Select from '../../components/Select';
 import Amount from '../../components/Amount';
 import IconButton from '../../components/IconButton';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import DepositDescription from './DepositDescription';
 
 /**
  * What can be recorded here. Interest and loan repayments are deliberately absent: those
@@ -28,30 +28,6 @@ import ConfirmDialog from '../../components/ConfirmDialog';
  */
 const DEPOSIT_TYPES: DepositType[] = ["MonthlyDeposit", "Other"];
 const MONTHLY_SAVING_AMOUNTS = [8000, 12000];
-
-/**
- * What this deposit was for. A monthly saving is identified by the BS period it covers;
- * anything else only has the remark, so that carries the row on its own rather than
- * sitting under an em dash.
- */
-function DepositDescription({ deposit }: { deposit: Deposit }) {
-  const period =
-    deposit.depositMonth && deposit.depositYear
-      ? bsPeriod(deposit.depositMonth, deposit.depositYear)
-      : null;
-  const remarks = deposit.notes?.trim();
-
-  if (!period && !remarks) return <span className="text-gray-400">—</span>;
-
-  return (
-    <>
-      <p className="text-gray-700">{period ?? remarks}</p>
-      {period && remarks && (
-        <p className="text-[11px] leading-tight text-gray-400 mt-1">{remarks}</p>
-      )}
-    </>
-  );
-}
 
 function getFormErrors(form: {
   type: DepositType;
@@ -74,6 +50,20 @@ function getFormErrors(form: {
   return errors;
 }
 
+/** A blank deposit, dated today in both calendars. */
+const emptyDeposit = () => {
+  const todayBs = currentBsDate();
+  return {
+    memberId: "",
+    amount: "8000",
+    depositDate: todayIso(),
+    depositMonth: todayBs.month,
+    depositYear: todayBs.year,
+    type: "MonthlyDeposit" as DepositType,
+    notes: "",
+  };
+};
+
 export default function Savings() {
   const { user, isGroupAdmin } = useAuth();
   const qc = useQueryClient();
@@ -87,16 +77,15 @@ export default function Savings() {
   const [filterVerified, setFilterVerified] = useState("");
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  const todayBs = currentBsDate();
-  const [form, setForm] = useState({
-    memberId: "",
-    amount: "8000",
-    depositDate: todayIso(),
-    depositMonth: todayBs.month,
-    depositYear: todayBs.year,
-    type: "MonthlyDeposit" as DepositType,
-    notes: "",
-  });
+  const [form, setForm] = useState(emptyDeposit);
+
+  // Always from a blank form: whatever was typed last time — saved or abandoned — is gone,
+  // and the dates are today's rather than those of whenever the page was opened.
+  const openAdd = () => {
+    setForm(emptyDeposit());
+    setFormErrors({});
+    setShowAdd(true);
+  };
 
   function handleTypeChange(type: DepositType) {
     setForm((f) => ({
@@ -186,7 +175,7 @@ export default function Savings() {
             Track monthly contributions and interest payments
           </p>
         </div>
-        <Button variant="primary" onClick={() => setShowAdd(true)}>
+        <Button variant="primary" onClick={openAdd}>
           <svg
             className="w-4 h-4"
             fill="none"

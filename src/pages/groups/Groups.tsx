@@ -6,13 +6,15 @@ import { formatDate } from '../../utils/format';
 import { useAuth } from '../../context/AuthContext';
 import type { Group } from '../../api/types';
 
+const emptyGroup = () => ({ name: '', code: '', description: '', memberInterestRate: '10', nonMemberInterestRate: '18', validFrom: '', validTo: '' });
+
 export default function Groups() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { isSuperAdmin } = useAuth();
 
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', code: '', description: '', memberInterestRate: '10', nonMemberInterestRate: '18', validFrom: '', validTo: '' });
+  const [addForm, setAddForm] = useState(emptyGroup);
   const [addError, setAddError] = useState('');
 
   const [editGroup, setEditGroup] = useState<Group | null>(null);
@@ -38,8 +40,6 @@ export default function Groups() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['groups'] });
       setShowAdd(false);
-      setAddForm({ name: '', code: '', description: '', memberInterestRate: '10', nonMemberInterestRate: '18', validFrom: '', validTo: '' });
-      setAddError('');
     },
     onError: (e: { response?: { data?: { detail?: string } } }) => setAddError(e.response?.data?.detail ?? 'Failed'),
   });
@@ -89,6 +89,13 @@ export default function Groups() {
     setEditGroup(g);
   };
 
+  // Always from a blank form: whatever was typed last time — saved or abandoned — is gone.
+  const openAdd = () => {
+    setAddForm(emptyGroup());
+    setAddError('');
+    setShowAdd(true);
+  };
+
   const openDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setDeleteError('');
@@ -103,7 +110,7 @@ export default function Groups() {
           <p className="text-gray-500 text-sm mt-0.5">Manage all savings groups</p>
         </div>
         <button
-          onClick={() => setShowAdd(true)}
+          onClick={openAdd}
           className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 flex items-center gap-2"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>

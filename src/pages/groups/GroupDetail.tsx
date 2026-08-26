@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { groupsApi, membersApi } from '../../api/groups';
 import { formatDate } from '../../utils/format';
 import { useAuth } from '../../context/AuthContext';
-import type { Group } from '../../api/types';
+import type { Group, Member } from '../../api/types';
 
 function ActionMenu({ items }: { items: { label: string; onClick: () => void; danger?: boolean; disabled?: boolean }[] }) {
   const [open, setOpen] = useState(false);
@@ -70,6 +70,8 @@ function ActionMenu({ items }: { items: { label: string; onClick: () => void; da
   );
 }
 
+const emptyAdmin = () => ({ firstName: '', lastName: '', email: '', phoneNumber: '' });
+
 export default function GroupDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -80,7 +82,7 @@ export default function GroupDetail() {
   const [editForm, setEditForm] = useState<Partial<Group>>({});
   const [editError, setEditError] = useState('');
   const [showAddAdmin, setShowAddAdmin] = useState(false);
-  const [adminForm, setAdminForm] = useState({ firstName: '', lastName: '', email: '', phoneNumber: '' });
+  const [adminForm, setAdminForm] = useState(emptyAdmin);
   const [adminError, setAdminError] = useState('');
   const [editAdmin, setEditAdmin] = useState<{ id: string; firstName: string; lastName: string; email: string } | null>(null);
   const [editAdminError, setEditAdminError] = useState('');
@@ -161,8 +163,6 @@ export default function GroupDetail() {
       qc.invalidateQueries({ queryKey: ['group', id] });
       qc.invalidateQueries({ queryKey: ['groups'] });
       setShowAddAdmin(false);
-      setAdminForm({ firstName: '', lastName: '', email: '', phoneNumber: '' });
-      setAdminError('');
     },
     onError: (e: { response?: { data?: { detail?: string } } }) =>
       setAdminError(e.response?.data?.detail ?? 'Failed to add group admin'),
@@ -193,6 +193,18 @@ export default function GroupDetail() {
       setEditError('');
       setShowEdit(true);
     }
+  };
+
+  // Always from a blank form: whatever was typed last time — saved or abandoned — is gone.
+  const openAddAdmin = () => {
+    setAdminForm(emptyAdmin());
+    setAdminError('');
+    setShowAddAdmin(true);
+  };
+
+  const openEditAdmin = (m: Member) => {
+    setEditAdminError('');
+    setEditAdmin({ id: m.id, firstName: m.firstName, lastName: m.lastName ?? '', email: m.email ?? '' });
   };
 
   if (groupLoading) {
@@ -299,7 +311,7 @@ export default function GroupDetail() {
             <p className="text-xs text-gray-400 mt-0.5">{memberCount} members · {adminCount} admin{adminCount !== 1 ? 's' : ''}</p>
           </div>
           <button
-            onClick={() => { setAdminForm({ firstName: '', lastName: '', email: '', phoneNumber: '' }); setAdminError(''); setShowAddAdmin(true); }}
+            onClick={openAddAdmin}
             className="px-3 py-1.5 bg-purple-600 text-white text-xs font-medium rounded-lg hover:bg-purple-700 flex items-center gap-1.5"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -354,14 +366,14 @@ export default function GroupDetail() {
                     <td className="px-5 py-3">
                       {m.groupRole === 'Admin' && (
                         <ActionMenu items={[
-                          { label: 'Edit', onClick: () => setEditAdmin({ id: m.id, firstName: m.firstName, lastName: m.lastName ?? '', email: m.email ?? '' }) },
+                          { label: 'Edit', onClick: () => openEditAdmin(m) },
                           ...(!m.hasAccount ? [{ label: 'Resend Invite', onClick: () => resendInviteMutation.mutate(m.id), disabled: resendInviteMutation.isPending }] : []),
                           { label: 'Remove Admin', onClick: () => removeAdminMutation.mutate(m.id), danger: true, disabled: removeAdminMutation.isPending },
                         ]} />
                       )}
                       {m.groupRole === 'Member' && (
                         <ActionMenu items={[
-                          { label: 'Edit', onClick: () => setEditAdmin({ id: m.id, firstName: m.firstName, lastName: m.lastName ?? '', email: m.email ?? '' }) },
+                          { label: 'Edit', onClick: () => openEditAdmin(m) },
                           ...(!m.hasAccount ? [{ label: 'Resend Invite', onClick: () => resendInviteMutation.mutate(m.id), disabled: resendInviteMutation.isPending }] : []),
                           { label: 'Make Admin', onClick: () => assignAdminMutation.mutate(m.id), disabled: assignAdminMutation.isPending },
                         ]} />

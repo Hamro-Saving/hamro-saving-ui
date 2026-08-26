@@ -10,6 +10,7 @@ import Signup from './pages/signup/Signup';
 import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard';
 import Dashboard from './pages/dashboard/Dashboard';
 import Members from './pages/members/Members';
+import MemberDetail from './pages/members/MemberDetail';
 import Savings from './pages/savings/Savings';
 import Loans from './pages/loans/Loans';
 import LoanDetail from './pages/loans/LoanDetail';
@@ -62,6 +63,7 @@ const PAGES: Record<string, React.ReactNode> = {
   '/groups/:id': <GroupDetail />,
   '/dashboard': <Dashboard />,
   '/members': <Members />,
+  '/members/:id': <MemberDetail />,
   '/savings': <Savings />,
   '/loans': <Loans />,
   '/loans/:id': <LoanDetail />,

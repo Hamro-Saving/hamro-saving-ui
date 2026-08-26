@@ -10,12 +10,13 @@ import { membersApi } from '../../api/groups';
 import type { FixedDeposit } from '../../api/types';
 import Amount from '../../components/Amount';
 
-const emptyExpense = { amount: '', category: '', description: '', expenseDate: todayIso() };
-const emptyFd = { institutionName: '', amount: '', interestRate: '', startDate: todayIso(), maturityDate: '', notes: '' };
+const emptyLj = () => ({ memberId: '', amount: '', paidDate: todayIso(), remarks: '' });
+const emptyExpense = () => ({ amount: '', category: '', description: '', expenseDate: todayIso() });
+const emptyFd = () => ({ institutionName: '', amount: '', interestRate: '', startDate: todayIso(), maturityDate: '', notes: '' });
 
 type Errors = Record<string, string>;
 
-function expenseErrors(f: typeof emptyExpense): Errors {
+function expenseErrors(f: ReturnType<typeof emptyExpense>): Errors {
   const e: Errors = {};
   if (!f.amount || Number(f.amount) <= 0) e.amount = 'Amount must be greater than zero.';
   if (!f.category.trim()) e.category = 'Category is required.';
@@ -24,7 +25,7 @@ function expenseErrors(f: typeof emptyExpense): Errors {
   return e;
 }
 
-function fdErrors(f: typeof emptyFd): Errors {
+function fdErrors(f: ReturnType<typeof emptyFd>): Errors {
   const e: Errors = {};
   if (!f.institutionName.trim()) e.institutionName = 'Institution name is required.';
   if (!f.amount || Number(f.amount) <= 0) e.amount = 'Amount must be greater than zero.';
@@ -53,7 +54,7 @@ export default function Finance() {
 
   // What a member who joined late paid to catch up. Income, so there is no cash limit
   // on it — the group is receiving rather than committing.
-  const [ljForm, setLjForm] = useState({ memberId: '', amount: '', paidDate: todayIso(), remarks: '' });
+  const [ljForm, setLjForm] = useState(emptyLj);
   const [ljError, setLjError] = useState('');
   const [showAddLj, setShowAddLj] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -113,7 +114,7 @@ export default function Finance() {
       ...expForm,
       amount: Number(expForm.amount),
     }),
-    onSuccess: () => { onSaved('expenses'); setExpForm(emptyExpense); },
+    onSuccess: () => onSaved('expenses'),
     onError: onFailed,
   });
 
@@ -124,7 +125,7 @@ export default function Finance() {
       interestRate: Number(fdForm.interestRate),
       notes: fdForm.notes || undefined,
     }),
-    onSuccess: () => { onSaved('fixed-deposits'); setFdForm(emptyFd); },
+    onSuccess: () => onSaved('fixed-deposits'),
     onError: onFailed,
   });
 
@@ -152,13 +153,16 @@ export default function Finance() {
     setWithdrawing(fd);
   };
 
+  // Always from a blank form: whatever was typed last time — saved or abandoned — is gone.
   const openAdd = () => {
     if (tab === 'other-income') {
-      setLjForm({ memberId: '', amount: '', paidDate: todayIso(), remarks: '' });
+      setLjForm(emptyLj());
       setLjError('');
       setShowAddLj(true);
       return;
     }
+    setExpForm(emptyExpense());
+    setFdForm(emptyFd());
     setErrors({});
     setSaveError('');
     setShowAdd(true);
