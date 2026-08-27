@@ -72,10 +72,11 @@ export const loansApi = {
     apiClient.post(`/loans/${id}/approve`).then((r) => r.data),
   declineLoan: (id: string) =>
     apiClient.post(`/loans/${id}/decline`).then((r) => r.data),
-  completeDisbursement: (id: string, disbursedOn?: string) =>
-    apiClient.put(`/loans/${id}/complete-disbursement`, { disbursedOn }).then((r) => r.data),
-  forceDisburse: (id: string, disbursedOn?: string) =>
-    apiClient.put(`/loans/${id}/force-disburse`, { disbursedOn }).then((r) => r.data),
+  // Omit disbursedAmount to pay out the full amount the loan was approved for.
+  completeDisbursement: (id: string, body?: { disbursedOn?: string; disbursedAmount?: number }) =>
+    apiClient.put(`/loans/${id}/complete-disbursement`, body ?? {}).then((r) => r.data),
+  forceDisburse: (id: string, body?: { disbursedOn?: string; disbursedAmount?: number }) =>
+    apiClient.put(`/loans/${id}/force-disburse`, body ?? {}).then((r) => r.data),
   cancelLoan: (id: string) =>
     apiClient.post(`/loans/${id}/cancel`).then((r) => r.data),
   getSummary: (params?: { groupId?: string }) =>

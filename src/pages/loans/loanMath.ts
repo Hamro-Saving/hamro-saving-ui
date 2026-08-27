@@ -23,6 +23,13 @@ export const isLive = (loan: Loan) => loan.status === 'Active' || loan.status ==
  */
 export const loanAmountSide = (loan: Loan): LedgerSide => (isLive(loan) ? 'debit' : 'inactive');
 
+/**
+ * Whether the group handed over less than it approved. The loan's amount is what actually
+ * left, so without this the record would silently read as though the smaller figure was
+ * what the members voted for.
+ */
+export const wasReducedAtDisbursement = (loan: Loan) => loan.amount < loan.requestedAmount;
+
 export const round2 = (v: number) => Math.round(v * 100) / 100;
 
 /**

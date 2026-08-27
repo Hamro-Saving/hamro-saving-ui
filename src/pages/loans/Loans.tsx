@@ -6,7 +6,7 @@ import { membersApi } from '../../api/groups';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
 import { formatCurrency, formatDate, todayIso } from '../../utils/format';
-import { STATUS_COLORS, LOAN_STATUS_FILTERS, isLive, loanAmountSide } from './loanMath';
+import { STATUS_COLORS, LOAN_STATUS_FILTERS, isLive, loanAmountSide, wasReducedAtDisbursement } from './loanMath';
 import LoanWorkflowPanel from './LoanWorkflowPanel';
 import RecordPaymentModal from './RecordPaymentModal';
 import type { BorrowerType, Loan } from '../../api/types';
@@ -167,6 +167,9 @@ export default function Loans() {
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-lg"><Amount value={loan.amount} side={loanAmountSide(loan)} className="text-lg" /></p>
+                  {wasReducedAtDisbursement(loan) && (
+                    <p className="text-[11px] text-amber-600">of {formatCurrency(loan.requestedAmount)} approved</p>
+                  )}
                   <p className="text-xs text-gray-400">{loan.interestRate}% per year</p>
                 </div>
               </div>

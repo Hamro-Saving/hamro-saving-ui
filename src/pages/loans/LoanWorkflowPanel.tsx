@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { todayIso } from '../../utils/format';
 import { useAuth } from '../../context/AuthContext';
 import { participates } from '../../api/types';
 import Button from '../../components/Button';
 import { useLoanActions } from './useLoanActions';
+import DisburseModal, { type DisburseMode } from './DisburseModal';
 import type { Loan } from '../../api/types';
 
 /**
@@ -12,11 +12,11 @@ import type { Loan } from '../../api/types';
  */
 export default function LoanWorkflowPanel({ loan }: { loan: Loan }) {
   const { user, isGroupAdmin } = useAuth();
-  const { approve, decline, completeDisbursement, forceDisburse, cancel, busy } = useLoanActions(loan.id);
-  const [confirmAction, setConfirmAction] = useState<'approve' | 'decline' | 'disburse' | 'force' | 'cancel' | null>(null);
-  // Defaults to today. Backdating is for a loan the group made before it kept records here,
-  // so the interest clock starts when the borrower actually got the money.
-  const [disbursedOn, setDisbursedOn] = useState(todayIso());
+  const { approve, decline, cancel, busy } = useLoanActions(loan.id);
+  const [confirmAction, setConfirmAction] = useState<'approve' | 'decline' | 'cancel' | null>(null);
+  // Paying out asks for an amount and a date, so it gets a form of its own rather than a
+  // confirm strip — both figures are worth reading before the money moves.
+  const [disbursing, setDisbursing] = useState<DisburseMode | null>(null);
 
   if (loan.status !== 'Pending' && loan.status !== 'Approved') return null;
 
@@ -52,7 +52,7 @@ export default function LoanWorkflowPanel({ loan }: { loan: Loan }) {
   const detail = loan.status === 'Pending'
     ? `${loan.approvalCount} of ${approvalsNeeded} to approve · ${loan.declineCount} of ${declinesNeeded} to decline`
     : isAdmin
-      ? `Carried by ${loan.approvalCount} of ${approvalsNeeded} needed approvals · marking the disbursement complete activates the loan and starts interest`
+      ? `Carried by ${loan.approvalCount} of ${approvalsNeeded} needed approvals · disbursing activates the loan and starts interest`
       : `Carried by ${loan.approvalCount} of ${approvalsNeeded} needed approvals`;
 
   return (
@@ -65,41 +65,23 @@ export default function LoanWorkflowPanel({ loan }: { loan: Loan }) {
         <div className="flex items-center gap-2">
           {confirmAction ? (
             <>
-              {(confirmAction === 'disburse' || confirmAction === 'force') && (
-                <label className="flex items-center gap-1.5 text-xs text-gray-600">
-                  Disbursed on
-                  <input
-                    type="date"
-                    value={disbursedOn}
-                    max={todayIso()}
-                    onChange={e => setDisbursedOn(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-2 py-1 text-xs"
-                  />
-                </label>
-              )}
               <span className="text-xs text-rose-700">
                 {confirmAction === 'approve' ? 'Approve this loan?'
                   : confirmAction === 'decline' ? 'Decline this loan?'
-                  : confirmAction === 'disburse' ? 'Money handed over?'
-                  : confirmAction === 'force' ? 'Pay out without the members\u2019 approval?'
                   : 'Cancel this loan for good?'}
               </span>
               <Button
-                variant={confirmAction === 'approve' ? 'success' : confirmAction === 'disburse' ? 'primary' : confirmAction === 'force' ? 'warning' : 'dangerSolid'}
+                variant={confirmAction === 'approve' ? 'success' : 'dangerSolid'}
                 size="sm"
                 disabled={busy}
                 onClick={() => {
-                  if (confirmAction === 'disburse') completeDisbursement.mutate(disbursedOn);
-                  else if (confirmAction === 'force') forceDisburse.mutate(disbursedOn);
-                  else if (confirmAction === 'approve') approve.mutate();
+                  if (confirmAction === 'approve') approve.mutate();
                   else if (confirmAction === 'decline') decline.mutate();
                   else cancel.mutate();
                   setConfirmAction(null);
                 }}>
                 {confirmAction === 'approve' ? 'Yes, approve'
                   : confirmAction === 'decline' ? 'Yes, decline'
-                  : confirmAction === 'disburse' ? 'Yes, it is disbursed'
-                  : confirmAction === 'force' ? 'Yes, disburse it'
                   : 'Yes, cancel it'}
               </Button>
               <Button size="sm" onClick={() => setConfirmAction(null)}>
@@ -119,13 +101,13 @@ export default function LoanWorkflowPanel({ loan }: { loan: Loan }) {
                 </>
               )}
               {canComplete && (
-                <Button variant="primary" size="sm" disabled={busy} onClick={() => setConfirmAction('disburse')}>
-                  {completeDisbursement.isPending ? 'Saving...' : 'Disbursement complete'}
+                <Button variant="primary" size="sm" disabled={busy} onClick={() => setDisbursing('disburse')}>
+                  Disburse loan
                 </Button>
               )}
               {canForce && (
-                <Button variant="warning" size="sm" disabled={busy} onClick={() => setConfirmAction('force')}>
-                  {forceDisburse.isPending ? 'Saving...' : 'Force disburse'}
+                <Button variant="warning" size="sm" disabled={busy} onClick={() => setDisbursing('force')}>
+                  Force disburse
                 </Button>
               )}
               {canCancel && (
@@ -160,6 +142,10 @@ export default function LoanWorkflowPanel({ loan }: { loan: Loan }) {
             </span>
           )}
         </div>
+      )}
+
+      {disbursing && (
+        <DisburseModal loan={loan} mode={disbursing} onClose={() => setDisbursing(null)} />
       )}
 
       {loan.status === 'Pending' && (

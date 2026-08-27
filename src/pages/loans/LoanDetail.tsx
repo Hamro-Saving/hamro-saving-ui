@@ -7,7 +7,7 @@ import type { LoanPayment } from '../../api/types';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import Button from '../../components/Button';
 import { formatCurrency, formatDate } from '../../utils/format';
-import { STATUS_COLORS, isLive } from './loanMath';
+import { STATUS_COLORS, isLive, wasReducedAtDisbursement } from './loanMath';
 import { useLoanActions } from './useLoanActions';
 import LoanWorkflowPanel from './LoanWorkflowPanel';
 import RecordPaymentModal from './RecordPaymentModal';
@@ -83,6 +83,7 @@ export default function LoanDetail() {
           </div>
           <p className="text-gray-500 text-sm mt-0.5">
             {formatCurrency(loan.amount)} at {loan.interestRate}% per year
+            {wasReducedAtDisbursement(loan) && ` · reduced from ${formatCurrency(loan.requestedAmount)} approved`}
             {loan.disbursedAt ? ` · disbursed ${formatDate(loan.disbursedAt)}` : ` · starts ${formatDate(loan.startDate)}`}
             {loan.dueDate && ` · due ${formatDate(loan.dueDate)}`}
           </p>
