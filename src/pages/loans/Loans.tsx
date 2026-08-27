@@ -36,17 +36,22 @@ export default function Loans() {
 
   const [showAdd, setShowAdd] = useState(false);
   const [applyForSelf, setApplyForSelf] = useState(false);
-  const [editLoan, setEditLoan] = useState<{ id: string; amount: string; interestRate: string; dueDate: string; notes: string } | null>(null);
+  const [editLoan, setEditLoan] = useState<{ id: string; amount: string; interestRate: string; startDate: string; dueDate: string; notes: string } | null>(null);
   // A cancelled loan came to nothing and has no entries, so it can be cleared away.
   const [deletingLoan, setDeletingLoan] = useState<Loan | null>(null);
   const [payingLoan, setPayingLoan] = useState<Loan | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
   const [form, setForm] = useState(emptyLoan);
+  // The group cannot lend money it is not holding. The API owns that rule and phrases the
+  // refusal — including the actual figures — so both forms just show what it said.
+  const [addError, setAddError] = useState('');
+  const [editError, setEditError] = useState('');
 
   // Always from a blank form: whatever was typed last time — saved or abandoned — is gone.
   const openApply = (forSelf: boolean) => {
     setApplyForSelf(forSelf);
     setForm({ ...emptyLoan(), borrowerId: forSelf && user?.memberId ? user.memberId : '' });
+    setAddError('');
     setShowAdd(true);
   };
 
@@ -80,12 +85,16 @@ export default function Loans() {
       });
     },
     onSuccess: () => { invalidateLoans(); setShowAdd(false); setApplyForSelf(false); },
+    onError: (e: { response?: { data?: { detail?: string } } }) =>
+      setAddError(e.response?.data?.detail ?? 'Could not create the loan.'),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, amount, interestRate, dueDate, notes }: { id: string; amount: number; interestRate: number | null; dueDate: string | null; notes?: string }) =>
-      loansApi.update(id, { amount, interestRate, dueDate, notes }),
+    mutationFn: ({ id, amount, interestRate, startDate, dueDate, notes }: { id: string; amount: number; interestRate: number | null; startDate: string; dueDate: string | null; notes?: string }) =>
+      loansApi.update(id, { amount, interestRate, startDate, dueDate, notes }),
     onSuccess: () => { invalidateLoans(); setEditLoan(null); },
+    onError: (e: { response?: { data?: { detail?: string } } }) =>
+      setEditError(e.response?.data?.detail ?? 'Could not save the changes.'),
   });
 
   const borrowers = form.borrowerType === 'Member' ? (members ?? []) : (nonMembers ?? []);
@@ -199,7 +208,7 @@ export default function Loans() {
                 {canEdit && (
                   <Button
                     size="sm"
-                    onClick={() => setEditLoan({ id: loan.id, amount: String(loan.amount), interestRate: String(loan.interestRate), dueDate: loan.dueDate ? loan.dueDate.slice(0, 10) : '', notes: loan.notes ?? '' })}
+                    onClick={() => { setEditError(''); setEditLoan({ id: loan.id, amount: String(loan.amount), interestRate: String(loan.interestRate), startDate: loan.startDate.slice(0, 10), dueDate: loan.dueDate ? loan.dueDate.slice(0, 10) : '', notes: loan.notes ?? '' }); }}
                   >
                     Edit
                   </Button>
@@ -221,6 +230,7 @@ export default function Loans() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">{applyForSelf ? 'Apply for Loan' : 'Create Loan'}</h2>
+            {addError && <p className="text-red-600 text-sm mb-3 bg-red-50 p-2 rounded">{addError}</p>}
             <div className="space-y-3">
               {!applyForSelf && (
                 <div><label className="text-xs text-gray-600 font-medium">Borrower Type</label>
@@ -270,6 +280,7 @@ export default function Loans() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Edit Loan</h2>
+            {editError && <p className="text-red-600 text-sm mb-3 bg-red-50 p-2 rounded">{editError}</p>}
             <div className="space-y-3">
               <div><label className="text-xs text-gray-600 font-medium">Loan Amount (NPR)</label>
                 <input type="number" value={editLoan.amount} onChange={e => setEditLoan(l => l && { ...l, amount: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
@@ -281,8 +292,12 @@ export default function Loans() {
                   <input type="number" step="0.1" value={editLoan.interestRate} onChange={e => setEditLoan(l => l && { ...l, interestRate: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Default rate" />
                 </div>
               )}
-              <div><label className="text-xs text-gray-600 font-medium">Due Date <span className="text-gray-400">(optional)</span></label>
-                <input type="date" value={editLoan.dueDate} onChange={e => setEditLoan(l => l && { ...l, dueDate: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-xs text-gray-600 font-medium">Start Date</label>
+                  <input type="date" value={editLoan.startDate} onChange={e => setEditLoan(l => l && { ...l, startDate: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+                <div><label className="text-xs text-gray-600 font-medium">Due Date <span className="text-gray-400">(optional)</span></label>
+                  <input type="date" value={editLoan.dueDate} onChange={e => setEditLoan(l => l && { ...l, dueDate: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+              </div>
               <div><label className="text-xs text-gray-600 font-medium">Notes <span className="text-gray-400">(optional)</span></label>
                 <textarea value={editLoan.notes} onChange={e => setEditLoan(l => l && { ...l, notes: e.target.value })} rows={2} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none" /></div>
             </div>
@@ -291,8 +306,8 @@ export default function Loans() {
               <Button
                 variant="primary"
                 className="flex-1"
-                onClick={() => updateMutation.mutate({ id: editLoan.id, amount: Number(editLoan.amount), interestRate: editLoan.interestRate ? Number(editLoan.interestRate) : null, dueDate: editLoan.dueDate || null, notes: editLoan.notes || undefined })}
-                disabled={updateMutation.isPending || !editLoan.amount || Number(editLoan.amount) <= 0}>
+                onClick={() => updateMutation.mutate({ id: editLoan.id, amount: Number(editLoan.amount), interestRate: editLoan.interestRate ? Number(editLoan.interestRate) : null, startDate: editLoan.startDate, dueDate: editLoan.dueDate || null, notes: editLoan.notes || undefined })}
+                disabled={updateMutation.isPending || !editLoan.amount || Number(editLoan.amount) <= 0 || !editLoan.startDate}>
                 {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>

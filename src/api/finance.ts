@@ -3,6 +3,7 @@ import type {
   Deposit,
   Loan,
   LoanPayment,
+  LoanPaymentListItem,
   Expense,
   FixedDeposit,
   FinancialSummary,
@@ -40,7 +41,7 @@ export const depositsApi = {
 };
 
 export const loansApi = {
-  update: (id: string, body: { amount: number; interestRate: number | null; dueDate: string | null; notes?: string }) =>
+  update: (id: string, body: { amount: number; interestRate: number | null; startDate: string; dueDate: string | null; notes?: string }) =>
     apiClient.put(`/loans/${id}`, body).then((r) => r.data),
   delete: (id: string) => apiClient.delete(`/loans/${id}`),
   getAll: (params?: {
@@ -62,6 +63,9 @@ export const loansApi = {
     loanId: string,
     body: { groupId?: string; principalAmount: number; interestAmount: number; paidDate: string; notes?: string },
   ) => apiClient.post<{ id: string }>(`/loans/${loanId}/payments`, body).then((r) => r.data),
+  // Payments across every loan in the group, unlike getPayments which is scoped to one.
+  listPayments: (params?: { groupId?: string; borrowerId?: string; isVerified?: boolean }) =>
+    apiClient.get<LoanPaymentListItem[]>("/loan-payments", { params }).then((r) => r.data),
   verifyPayment: (paymentId: string) =>
     apiClient.put(`/loan-payments/${paymentId}/verify`),
   approveLoan: (id: string) =>

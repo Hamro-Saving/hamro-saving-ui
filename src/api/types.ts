@@ -53,6 +53,12 @@ export interface Loan { id: string; borrowerId: string; borrowerName: string; bo
 
 export interface LoanPayment { id: string; loanId: string; amount: number; principalAmount: number; interestAmount: number; paidDate: string; paymentType: LoanPaymentType; notes?: string; interestOwedBefore: number; daysAccrued: number; outstandingPrincipalAfter: number; unpaidInterestAfter: number; isVerified: boolean; verifiedAt?: string; createdAt: string; }
 
+/**
+ * A loan payment seen from outside its loan, for queues that span the group — it carries the
+ * borrower and loan that `LoanPayment` leaves implicit. Mirrors GET /loan-payments.
+ */
+export interface LoanPaymentListItem { id: string; loanId: string; borrowerId: string; borrowerName: string; groupId: string; amount: number; principalAmount: number; interestAmount: number; paidDate: string; paymentType: LoanPaymentType; notes?: string; isVerified: boolean; verifiedAt?: string; createdAt: string; }
+
 export interface Expense { id: string; groupId: string; amount: number; category: string; description: string; expenseDate: string; approvedById?: string; createdAt: string; }
 
 export type FixedDepositStatus = 'Active' | 'Matured' | 'Withdrawn';
