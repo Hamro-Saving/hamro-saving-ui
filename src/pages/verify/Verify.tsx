@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { depositsApi, loansApi } from "../../api/finance";
+import { depositsApi, loansApi, financeApi, otherIncomingFundsApi } from "../../api/finance";
 import { useAuth } from "../../context/AuthContext";
-import { formatCurrency, formatDate } from "../../utils/format";
+import { formatCurrency, formatDate, depositLabel } from "../../utils/format";
 import Amount from '../../components/Amount';
-import { depositLabel } from '../../utils/format';
-import type { Deposit, LoanPaymentListItem } from '../../api/types';
+import type { LoanPaymentListItem } from '../../api/types';
 import IconButton from '../../components/IconButton';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
@@ -17,16 +16,13 @@ function paymentLabel(p: LoanPaymentListItem) {
   return parts.length ? parts.join(' + ') : 'Loan repayment';
 }
 
-/** Shared chrome so both queues read as one page rather than two transplanted ones. */
 function QueueSection({
   title,
   count,
-  emptyLabel,
   children,
 }: {
   title: string;
   count: number;
-  emptyLabel: string;
   children: React.ReactNode;
 }) {
   return (
@@ -37,42 +33,79 @@ function QueueSection({
           {count} pending
         </span>
       </div>
-      <div className="divide-y divide-gray-50">
-        {count > 0 ? children : (
-          <div className="px-5 py-10 text-center">
-            <svg
-              className="w-10 h-10 text-emerald-200 mx-auto mb-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <p className="text-sm text-gray-400">{emptyLabel}</p>
-          </div>
-        )}
+      <div className="divide-y divide-gray-50">{children}</div>
+    </div>
+  );
+}
+
+/** Every queue has the same shape, so they share one row rather than each growing its own. */
+function QueueRow({
+  title,
+  detail,
+  note,
+  amount,
+  side = 'credit',
+  actionLabel,
+  onVerify,
+  busy,
+}: {
+  title: string;
+  detail: string;
+  note?: string;
+  amount: number;
+  side?: 'credit' | 'debit';
+  actionLabel: string;
+  onVerify: () => void;
+  busy: boolean;
+}) {
+  return (
+    <div className="px-5 py-4 flex items-center justify-between">
+      <div>
+        <p className="font-medium text-gray-800">{title}</p>
+        <p className="text-xs text-gray-400 mt-0.5">{detail}</p>
+        {note && <p className="text-xs text-gray-500 mt-0.5 italic">"{note}"</p>}
+      </div>
+      <div className="flex items-center gap-4">
+        <div className="text-right">
+          <p className="font-semibold text-gray-900">
+            <Amount value={amount} side={side} />
+          </p>
+        </div>
+        <IconButton icon="verify" label={actionLabel} variant="success" onClick={onVerify} disabled={busy} />
       </div>
     </div>
   );
 }
 
+function AllClear() {
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-16 text-center">
+      <svg className="w-12 h-12 text-emerald-200 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <p className="font-medium text-gray-700">All caught up</p>
+      <p className="text-sm text-gray-400 mt-1">Nothing is waiting to be posted to the books.</p>
+    </div>
+  );
+}
+
+type Confirmation = {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  run: () => void;
+};
+
 export default function Verify() {
   const { user } = useAuth();
   const qc = useQueryClient();
 
-  // Verifying posts the record to the books and cannot be undone, so both queues confirm first.
-  const [verifyingDeposit, setVerifyingDeposit] = useState<Deposit | null>(null);
-  const [verifyingPayment, setVerifyingPayment] = useState<LoanPaymentListItem | null>(null);
+  // Verifying posts the record to the books and cannot be undone, so every queue confirms first.
+  const [confirming, setConfirming] = useState<Confirmation | null>(null);
 
   const { data: pendingDeposits } = useQuery({
     queryKey: ["deposits", user?.activeGroupId, "pending"],
-    queryFn: () =>
-      depositsApi.getDeposits({ isVerified: false }),
+    queryFn: () => depositsApi.getDeposits({ isVerified: false }),
   });
 
   const { data: pendingPayments } = useQuery({
@@ -80,27 +113,75 @@ export default function Verify() {
     queryFn: () => loansApi.listPayments({ isVerified: false }),
   });
 
-  const verifyDepositMutation = useMutation({
+  // No server-side pending filter for these three. Keys match the Finance page's so both
+  // share one fetch.
+  const { data: expenses } = useQuery({
+    queryKey: ['expenses', user?.activeGroupId],
+    queryFn: () => financeApi.getExpenses(),
+  });
+
+  const { data: fds } = useQuery({
+    queryKey: ['fixed-deposits', user?.activeGroupId],
+    queryFn: () => financeApi.getFixedDeposits(),
+  });
+
+  const { data: otherIncome } = useQuery({
+    queryKey: ['other-incoming-funds', user?.activeGroupId],
+    queryFn: () => otherIncomingFundsApi.getAll(),
+  });
+
+  const afterVerifying = (...keys: string[]) => () => {
+    for (const key of keys) qc.invalidateQueries({ queryKey: [key] });
+    // Everything here posts to the ledger, so the group's position has moved.
+    qc.invalidateQueries({ queryKey: ["finance-summary"] });
+    qc.invalidateQueries({ queryKey: ["transactions"] });
+  };
+
+  const verifyDeposit = useMutation({
     mutationFn: (id: string) => depositsApi.verifyDeposit(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["deposits"] });
-      qc.invalidateQueries({ queryKey: ["finance-summary"] });
-    },
+    onSuccess: afterVerifying("deposits"),
   });
 
-  const verifyPaymentMutation = useMutation({
+  const verifyPayment = useMutation({
     mutationFn: (id: string) => loansApi.verifyPayment(id),
-    onSuccess: () => {
-      // A verified payment moves the loan's balances as well as the group's cash.
-      qc.invalidateQueries({ queryKey: ["loan-payments"] });
-      qc.invalidateQueries({ queryKey: ["loans"] });
-      qc.invalidateQueries({ queryKey: ["finance-summary"] });
-    },
+    // A verified payment moves the loan's balances as well as the group's cash.
+    onSuccess: afterVerifying("loan-payments", "loans"),
   });
 
-  const depositCount = pendingDeposits?.length ?? 0;
-  const paymentCount = pendingPayments?.length ?? 0;
-  const total = depositCount + paymentCount;
+  const verifyExpense = useMutation({
+    mutationFn: (id: string) => financeApi.verifyExpense(id),
+    onSuccess: afterVerifying("expenses"),
+  });
+
+  const verifyFd = useMutation({
+    mutationFn: (id: string) => financeApi.verifyFixedDeposit(id),
+    onSuccess: afterVerifying("fixed-deposits"),
+  });
+
+  const verifyFdWithdrawal = useMutation({
+    mutationFn: (id: string) => financeApi.verifyFixedDepositWithdrawal(id),
+    onSuccess: afterVerifying("fixed-deposits"),
+  });
+
+  const verifyOtherIncome = useMutation({
+    mutationFn: (id: string) => otherIncomingFundsApi.verify(id),
+    onSuccess: afterVerifying("other-incoming-funds"),
+  });
+
+  const busy = [verifyDeposit, verifyPayment, verifyExpense, verifyFd, verifyFdWithdrawal, verifyOtherIncome]
+    .some(m => m.isPending);
+
+  const deposits = pendingDeposits ?? [];
+  const payments = pendingPayments ?? [];
+  const pendingExpenses = (expenses ?? []).filter(e => !e.isVerified);
+  const pendingPlacements = (fds ?? []).filter(fd => !fd.isVerified);
+  // A deposit cannot be withdrawn unverified, so these never overlap.
+  const pendingWithdrawals = (fds ?? []).filter(fd => fd.status === 'Withdrawn' && !fd.isWithdrawalVerified);
+  const pendingIncome = (otherIncome ?? []).filter(r => !r.isVerified);
+
+  const total =
+    deposits.length + payments.length + pendingExpenses.length +
+    pendingPlacements.length + pendingWithdrawals.length + pendingIncome.length;
 
   return (
     <div className="p-6 space-y-6">
@@ -109,111 +190,155 @@ export default function Verify() {
         <p className="text-gray-500 text-sm mt-0.5">
           {total > 0
             ? `${total} ${total === 1 ? 'record' : 'records'} waiting to be posted to the books`
-            : 'Review and verify pending deposits and loan payments'}
+            : 'Nothing is waiting on you'}
         </p>
       </div>
 
-      <QueueSection
-        title="Pending Deposits"
-        count={depositCount}
-        emptyLabel="All caught up! No pending deposits."
-      >
-        {(pendingDeposits ?? []).map((d) => (
-          <div
-            key={d.id}
-            className="px-5 py-4 flex items-center justify-between"
-          >
-            <div>
-              <p className="font-medium text-gray-800">{d.memberName}</p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {depositLabel(d.type, d.depositMonth, d.depositYear)} · Submitted {formatDate(d.createdAt)}
-              </p>
-              {d.notes && (
-                <p className="text-xs text-gray-500 mt-0.5 italic">
-                  "{d.notes}"
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="font-semibold text-gray-900">
-                  <Amount value={d.amount} side="credit" />
-                </p>
-              </div>
-              <IconButton
-                icon="verify"
-                label={verifyDepositMutation.variables === d.id && verifyDepositMutation.isPending ? "Verifying..." : "Verify deposit"}
-                variant="success"
-                onClick={() => setVerifyingDeposit(d)}
-                disabled={verifyDepositMutation.isPending}
-              />
-            </div>
-          </div>
-        ))}
-      </QueueSection>
+      {/* Only queues with something in them are shown. With six of them, rendering an empty
+          state for each would bury the one that actually needs attention. */}
+      {total === 0 && <AllClear />}
 
-      <QueueSection
-        title="Pending Loan Payments"
-        count={paymentCount}
-        emptyLabel="All caught up! No pending loan payments."
-      >
-        {(pendingPayments ?? []).map((p) => (
-          <div
-            key={p.id}
-            className="px-5 py-4 flex items-center justify-between"
-          >
-            <div>
-              <p className="font-medium text-gray-800">{p.borrowerName}</p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {paymentLabel(p)} · Paid {formatDate(p.paidDate)} · Submitted {formatDate(p.createdAt)}
-              </p>
-              {p.notes && (
-                <p className="text-xs text-gray-500 mt-0.5 italic">
-                  "{p.notes}"
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="font-semibold text-gray-900">
-                  <Amount value={p.amount} side="credit" />
-                </p>
-              </div>
-              <IconButton
-                icon="verify"
-                label={verifyPaymentMutation.variables === p.id && verifyPaymentMutation.isPending ? "Verifying..." : "Verify payment"}
-                variant="success"
-                onClick={() => setVerifyingPayment(p)}
-                disabled={verifyPaymentMutation.isPending}
-              />
-            </div>
-          </div>
-        ))}
-      </QueueSection>
-
-      {verifyingDeposit && (
-        <ConfirmDialog
-          title="Verify this deposit?"
-          body={`This records ${formatCurrency(verifyingDeposit.amount)} from ${verifyingDeposit.memberName} in the group's books. It cannot be undone.`}
-          confirmLabel="Verify deposit"
-          busyLabel="Verifying..."
-          variant="success"
-          busy={verifyDepositMutation.isPending}
-          onConfirm={() => { verifyDepositMutation.mutate(verifyingDeposit.id); setVerifyingDeposit(null); }}
-          onCancel={() => setVerifyingDeposit(null)}
-        />
+      {deposits.length > 0 && (
+        <QueueSection title="Pending Deposits" count={deposits.length}>
+          {deposits.map(d => (
+            <QueueRow
+              key={d.id}
+              title={d.memberName}
+              detail={`${depositLabel(d.type, d.depositMonth, d.depositYear)} · Submitted ${formatDate(d.createdAt)}`}
+              note={d.notes}
+              amount={d.amount}
+              actionLabel="Verify deposit"
+              busy={busy}
+              onVerify={() => setConfirming({
+                title: 'Verify this deposit?',
+                body: `This records ${formatCurrency(d.amount)} from ${d.memberName} in the group's books. It cannot be undone.`,
+                confirmLabel: 'Verify deposit',
+                run: () => verifyDeposit.mutate(d.id),
+              })}
+            />
+          ))}
+        </QueueSection>
       )}
 
-      {verifyingPayment && (
+      {payments.length > 0 && (
+        <QueueSection title="Pending Loan Payments" count={payments.length}>
+          {payments.map(p => (
+            <QueueRow
+              key={p.id}
+              title={p.borrowerName}
+              detail={`${paymentLabel(p)} · Paid ${formatDate(p.paidDate)} · Submitted ${formatDate(p.createdAt)}`}
+              note={p.notes}
+              amount={p.amount}
+              actionLabel="Verify payment"
+              busy={busy}
+              onVerify={() => setConfirming({
+                title: 'Verify this loan payment?',
+                body: `This records ${formatCurrency(p.amount)} from ${p.borrowerName} against their loan and in the group's books. It cannot be undone.`,
+                confirmLabel: 'Verify payment',
+                run: () => verifyPayment.mutate(p.id),
+              })}
+            />
+          ))}
+        </QueueSection>
+      )}
+
+      {pendingExpenses.length > 0 && (
+        <QueueSection title="Pending Expenses" count={pendingExpenses.length}>
+          {pendingExpenses.map(e => (
+            <QueueRow
+              key={e.id}
+              title={e.category}
+              detail={`${e.description} · Spent ${formatDate(e.expenseDate)} · Submitted ${formatDate(e.createdAt)}`}
+              amount={e.amount}
+              side="debit"
+              actionLabel="Verify expense"
+              busy={busy}
+              onVerify={() => setConfirming({
+                title: 'Verify this expense?',
+                body: `This spends ${formatCurrency(e.amount)} of the group's money on ${e.category} and posts it to the books. Nobody votes on an expense, so this is the only check it gets. It cannot be undone.`,
+                confirmLabel: 'Verify expense',
+                run: () => verifyExpense.mutate(e.id),
+              })}
+            />
+          ))}
+        </QueueSection>
+      )}
+
+      {pendingPlacements.length > 0 && (
+        <QueueSection title="Pending Fixed Deposits" count={pendingPlacements.length}>
+          {pendingPlacements.map(fd => (
+            <QueueRow
+              key={fd.id}
+              title={fd.institutionName}
+              detail={`${fd.interestRate}% p.a. · ${formatDate(fd.startDate)} → ${formatDate(fd.maturityDate)} · Matures at ${formatCurrency(fd.expectedMaturityAmount)}`}
+              note={fd.notes}
+              amount={fd.amount}
+              side="debit"
+              actionLabel="Verify placement"
+              busy={busy}
+              onVerify={() => setConfirming({
+                title: 'Verify this fixed deposit?',
+                body: `This moves ${formatCurrency(fd.amount)} out of the group's cash and into a deposit with ${fd.institutionName}. It cannot be withdrawn until this is done, and it cannot be undone.`,
+                confirmLabel: 'Verify placement',
+                run: () => verifyFd.mutate(fd.id),
+              })}
+            />
+          ))}
+        </QueueSection>
+      )}
+
+      {pendingWithdrawals.length > 0 && (
+        <QueueSection title="Pending Fixed Deposit Withdrawals" count={pendingWithdrawals.length}>
+          {pendingWithdrawals.map(fd => (
+            <QueueRow
+              key={fd.id}
+              title={fd.institutionName}
+              detail={`${formatCurrency(fd.amount)} principal + ${formatCurrency(fd.interestEarned ?? 0)} interest · Withdrawn ${fd.withdrawnAt ? formatDate(fd.withdrawnAt) : '—'}`}
+              amount={fd.amount + (fd.interestEarned ?? 0)}
+              actionLabel="Verify withdrawal"
+              busy={busy}
+              onVerify={() => setConfirming({
+                title: 'Verify this withdrawal?',
+                body: `This brings ${formatCurrency(fd.amount + (fd.interestEarned ?? 0))} back from ${fd.institutionName}, of which ${formatCurrency(fd.interestEarned ?? 0)} is recorded as the group's interest income. Check that against the institution's own figure — it cannot be undone.`,
+                confirmLabel: 'Verify withdrawal',
+                run: () => verifyFdWithdrawal.mutate(fd.id),
+              })}
+            />
+          ))}
+        </QueueSection>
+      )}
+
+      {pendingIncome.length > 0 && (
+        <QueueSection title="Pending Other Incoming Funds" count={pendingIncome.length}>
+          {pendingIncome.map(r => (
+            <QueueRow
+              key={r.id}
+              title={r.memberName}
+              detail={`${r.remarks} · Paid ${formatDate(r.paidDate)} · Submitted ${formatDate(r.createdAt)}`}
+              amount={r.amount}
+              actionLabel="Verify receipt"
+              busy={busy}
+              onVerify={() => setConfirming({
+                title: 'Verify this receipt?',
+                body: `This records ${formatCurrency(r.amount)} from ${r.memberName} as income to the group — not savings, so it is not owed back. It cannot be undone.`,
+                confirmLabel: 'Verify receipt',
+                run: () => verifyOtherIncome.mutate(r.id),
+              })}
+            />
+          ))}
+        </QueueSection>
+      )}
+
+      {confirming && (
         <ConfirmDialog
-          title="Verify this loan payment?"
-          body={`This records ${formatCurrency(verifyingPayment.amount)} from ${verifyingPayment.borrowerName} against their loan and in the group's books. It cannot be undone.`}
-          confirmLabel="Verify payment"
+          title={confirming.title}
+          body={confirming.body}
+          confirmLabel={confirming.confirmLabel}
           busyLabel="Verifying..."
           variant="success"
-          busy={verifyPaymentMutation.isPending}
-          onConfirm={() => { verifyPaymentMutation.mutate(verifyingPayment.id); setVerifyingPayment(null); }}
-          onCancel={() => setVerifyingPayment(null)}
+          busy={busy}
+          onConfirm={() => { confirming.run(); setConfirming(null); }}
+          onCancel={() => setConfirming(null)}
         />
       )}
     </div>

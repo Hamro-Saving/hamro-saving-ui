@@ -59,11 +59,13 @@ export interface LoanPayment { id: string; loanId: string; amount: number; princ
  */
 export interface LoanPaymentListItem { id: string; loanId: string; borrowerId: string; borrowerName: string; groupId: string; amount: number; principalAmount: number; interestAmount: number; paidDate: string; paymentType: LoanPaymentType; notes?: string; isVerified: boolean; verifiedAt?: string; createdAt: string; }
 
-export interface Expense { id: string; groupId: string; amount: number; category: string; description: string; expenseDate: string; approvedById?: string; createdAt: string; }
+/** Unverified expenses are not on the ledger, so they must not be counted in any total. */
+export interface Expense { id: string; groupId: string; amount: number; category: string; description: string; expenseDate: string; isVerified: boolean; verifiedById?: string; verifiedAt?: string; createdAt: string; }
 
 export type FixedDepositStatus = 'Active' | 'Matured' | 'Withdrawn';
 
-export interface FixedDeposit { id: string; groupId: string; institutionName: string; amount: number; interestRate: number; startDate: string; maturityDate: string; status: FixedDepositStatus; notes?: string; expectedMaturityAmount: number; interestEarned?: number; withdrawnAt?: string; createdAt: string; }
+/** Placement and withdrawal are verified separately — they are two movements of money. */
+export interface FixedDeposit { id: string; groupId: string; institutionName: string; amount: number; interestRate: number; startDate: string; maturityDate: string; status: FixedDepositStatus; notes?: string; expectedMaturityAmount: number; isVerified: boolean; verifiedAt?: string; interestEarned?: number; withdrawnAt?: string; isWithdrawalVerified: boolean; withdrawalVerifiedAt?: string; createdAt: string; }
 
 // Mirrors FinancialSummaryResponse from GET /finance/summary — no member or loan counts.
 export interface FinancialSummary { totalSavingsCollected: number; totalOnLoan: number; totalInterestCollected: number; totalExpenses: number; totalFixedDeposits: number; inHandCash: number; }
@@ -142,5 +144,7 @@ export interface OtherIncomingFund {
   amount: number;
   paidDate: string;
   remarks: string;
+  isVerified: boolean;
+  verifiedAt?: string;
   createdAt: string;
 }

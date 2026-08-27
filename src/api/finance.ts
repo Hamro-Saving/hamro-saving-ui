@@ -90,6 +90,7 @@ export const financeApi = {
       .then((r) => r.data),
   createExpense: (body: Partial<Expense>) =>
     apiClient.post<{ id: string }>("/expenses", body).then((r) => r.data),
+  verifyExpense: (id: string) => apiClient.put(`/expenses/${id}/verify`),
   getFixedDeposits: (params?: { groupId?: string }) =>
     apiClient
       .get<FixedDeposit[]>("/fixed-deposits", { params })
@@ -98,9 +99,14 @@ export const financeApi = {
     apiClient
       .post<{ id: string }>("/fixed-deposits", body)
       .then((r) => r.data),
+  // A deposit cannot be withdrawn until this has happened.
+  verifyFixedDeposit: (id: string) => apiClient.put(`/fixed-deposits/${id}/verify`),
   // Closes the deposit and records the interest the institution actually returned
   withdrawFixedDeposit: (id: string, body: { interestEarned: number; withdrawnAt: string }) =>
     apiClient.put(`/fixed-deposits/${id}/withdraw`, body).then((r) => r.data),
+  // A second movement, verified on its own.
+  verifyFixedDepositWithdrawal: (id: string) =>
+    apiClient.put(`/fixed-deposits/${id}/verify-withdrawal`),
   getSummary: (params?: { groupId?: string }) =>
     apiClient
       .get<FinancialSummary>("/finance/summary", { params })
@@ -122,4 +128,5 @@ export const otherIncomingFundsApi = {
     apiClient.get<OtherIncomingFund[]>('/other-incoming-funds', { params }).then(r => r.data),
   record: (body: { memberId: string; amount: number; paidDate: string; remarks: string }) =>
     apiClient.post<{ id: string }>('/other-incoming-funds', body).then(r => r.data),
+  verify: (id: string) => apiClient.put(`/other-incoming-funds/${id}/verify`),
 };

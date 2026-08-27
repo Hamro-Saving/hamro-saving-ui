@@ -43,6 +43,15 @@ const STATUS_COLORS: Record<string, string> = {
   Withdrawn: 'bg-gray-100 text-gray-600',
 };
 
+/** Without this an unverified row looks exactly like money that has already moved. */
+function PendingBadge({ label = 'Pending verification' }: { label?: string }) {
+  return (
+    <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium whitespace-nowrap">
+      {label}
+    </span>
+  );
+}
+
 function FieldError({ message }: { message?: string }) {
   return message ? <p className="text-[11px] text-red-600 mt-0.5">{message}</p> : null;
 }
@@ -177,10 +186,17 @@ export default function Finance() {
   };
 
   const saving = expMutation.isPending || fdMutation.isPending;
-  const totalExpenses = (expenses ?? []).reduce((s, e) => s + e.amount, 0);
-  const totalFds = (fds ?? []).reduce((s, f) => s + f.amount, 0);
+
+  // These sit beside ledger-derived figures from the API, so unverified rows must not count.
+  const totalExpenses = (expenses ?? []).filter(e => e.isVerified).reduce((s, e) => s + e.amount, 0);
+  const totalFds = (fds ?? []).filter(f => f.isVerified && !f.isWithdrawalVerified).reduce((s, f) => s + f.amount, 0);
+  const totalOtherIncome = (otherIncome ?? []).filter(r => r.isVerified).reduce((s, r) => s + r.amount, 0);
   const activeFds = (fds ?? []).filter(f => f.status === 'Active');
   const maturedFds = (fds ?? []).filter(f => f.status === 'Matured');
+  const awaitingVerification =
+    (expenses ?? []).filter(e => !e.isVerified).length +
+    (fds ?? []).filter(f => !f.isVerified || (f.status === 'Withdrawn' && !f.isWithdrawalVerified)).length +
+    (otherIncome ?? []).filter(r => !r.isVerified).length;
 
   return (
     <div className="p-6 space-y-6">
@@ -189,6 +205,11 @@ export default function Finance() {
           <h1 className="text-2xl font-bold text-gray-900">Finance</h1>
           <p className="text-gray-500 text-sm mt-0.5">
             {formatCurrency(totalExpenses)} spent · {formatCurrency(totalFds)} in fixed deposits
+            {awaitingVerification > 0 && (
+              <span className="text-amber-700">
+                {' · '}{awaitingVerification} awaiting verification
+              </span>
+            )}
           </p>
         </div>
         {isGroupAdmin && (
@@ -367,10 +388,13 @@ export default function Finance() {
             <tbody className="divide-y divide-gray-50">
               {(expenses ?? []).map(e => (
                 <tr key={e.id} className="hover:bg-gray-50">
-                  <td className="px-5 py-3.5"><span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">{e.category}</span></td>
+                  <td className="px-5 py-3.5">
+                    <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">{e.category}</span>
+                    {!e.isVerified && <PendingBadge />}
+                  </td>
                   <td className="px-5 py-3.5 text-gray-600">{e.description}</td>
                   <td className="px-5 py-3.5 text-gray-500">{formatDate(e.expenseDate)}</td>
-                  <td className="px-5 py-3.5 text-right"><Amount value={e.amount} side="debit" /></td>
+                  <td className="px-5 py-3.5 text-right"><Amount value={e.amount} side={e.isVerified ? 'debit' : 'inactive'} /></td>
                 </tr>
               ))}
               {expensesLoading && <tr><td colSpan={4} className="text-center py-10 text-gray-400">Loading...</td></tr>}
@@ -379,7 +403,7 @@ export default function Finance() {
             {!!expenses?.length && (
               <tfoot>
                 <tr className="border-t border-gray-100 bg-gray-50">
-                  <td colSpan={3} className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Total</td>
+                  <td colSpan={3} className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Total verified</td>
                   <td className="px-5 py-3 text-right"><Amount value={totalExpenses} side="debit" /></td>
                 </tr>
               </tfoot>
@@ -405,6 +429,8 @@ export default function Finance() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-gray-800">{fd.institutionName}</p>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[fd.status]}`}>{fd.status}</span>
+                    {!fd.isVerified && <PendingBadge label="Placement not verified" />}
+                    {fd.status === 'Withdrawn' && !fd.isWithdrawalVerified && <PendingBadge label="Withdrawal not verified" />}
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">{formatDate(fd.startDate)} → {formatDate(fd.maturityDate)} · {fd.interestRate}% p.a.</p>
                   {fd.status === 'Matured' && (
@@ -432,7 +458,14 @@ export default function Finance() {
                     <p className="text-xs text-gray-400">Matures at {formatCurrency(fd.expectedMaturityAmount)}</p>
                   )}
                   {fd.status !== 'Withdrawn' && isGroupAdmin && (
-                    <Button size="sm" className="mt-2" onClick={() => openWithdraw(fd)}>Withdraw</Button>
+                    <>
+                      <Button size="sm" className="mt-2" disabled={!fd.isVerified} onClick={() => openWithdraw(fd)}>Withdraw</Button>
+                      {!fd.isVerified && (
+                        <p className="text-xs text-amber-700 mt-1 max-w-[12rem]">
+                          Verify the placement before withdrawing it.
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -467,10 +500,13 @@ export default function Finance() {
                 )}
                 {!ljLoading && (otherIncome ?? []).map(r => (
                   <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3.5 font-medium text-gray-800">{r.memberName}</td>
+                    <td className="px-5 py-3.5 font-medium text-gray-800">
+                      {r.memberName}
+                      {!r.isVerified && <PendingBadge />}
+                    </td>
                     <td className="px-5 py-3.5 text-gray-500 whitespace-nowrap">{formatDate(r.paidDate)}</td>
                     <td className="px-5 py-3.5 text-gray-600">{r.remarks}</td>
-                    <td className="px-5 py-3.5 text-right"><Amount value={r.amount} side="credit" /></td>
+                    <td className="px-5 py-3.5 text-right"><Amount value={r.amount} side={r.isVerified ? 'credit' : 'inactive'} /></td>
                   </tr>
                 ))}
                 {!ljLoading && !otherIncome?.length && (
@@ -478,9 +514,9 @@ export default function Finance() {
                 )}
                 {!!otherIncome?.length && (
                   <tr className="bg-gray-50 font-semibold">
-                    <td className="px-5 py-3" colSpan={3}>Total</td>
+                    <td className="px-5 py-3" colSpan={3}>Total verified</td>
                     <td className="px-5 py-3 text-right">
-                      <Amount value={otherIncome.reduce((sum, r) => sum + r.amount, 0)} side="credit" />
+                      <Amount value={totalOtherIncome} side="credit" />
                     </td>
                   </tr>
                 )}
