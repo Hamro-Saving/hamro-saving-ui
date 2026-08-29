@@ -7,14 +7,19 @@ import { formatCurrency, formatDate, todayIso } from '../../utils/format';
 import { otherIncomingFundsApi } from '../../api/finance';
 import Select from '../../components/Select';
 import { membersApi } from '../../api/groups';
-import type { FixedDeposit } from '../../api/types';
+import type { Expense, FixedDeposit, OtherIncomingFund } from '../../api/types';
 import Amount from '../../components/Amount';
+import IconButton from '../../components/IconButton';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const emptyLj = () => ({ memberId: '', amount: '', paidDate: todayIso(), remarks: '' });
 const emptyExpense = () => ({ amount: '', category: '', description: '', expenseDate: todayIso() });
 const emptyFd = () => ({ institutionName: '', amount: '', interestRate: '', startDate: todayIso(), maturityDate: '', notes: '' });
 
 type Errors = Record<string, string>;
+
+/** A removal, held until the admin confirms it. `run` is the call that actually does it. */
+type Confirmation = { title: string; body: string; confirmLabel: string; run: () => Promise<unknown> };
 
 function expenseErrors(f: ReturnType<typeof emptyExpense>): Errors {
   const e: Errors = {};
@@ -67,6 +72,11 @@ export default function Finance() {
   const [ljError, setLjError] = useState('');
   const [showAddLj, setShowAddLj] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  // Set while the add form is being used to correct an existing record instead.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingLjId, setEditingLjId] = useState<string | null>(null);
+  // Removing a record is only possible until it is verified, so it is worth one question first.
+  const [confirming, setConfirming] = useState<Confirmation | null>(null);
   const [expForm, setExpForm] = useState(emptyExpense);
   const [fdForm, setFdForm] = useState(emptyFd);
   const [errors, setErrors] = useState<Errors>({});
@@ -96,53 +106,91 @@ export default function Finance() {
     qc.invalidateQueries({ queryKey: [key] });
     qc.invalidateQueries({ queryKey: ['finance-summary'] });
     setShowAdd(false);
+    setEditingId(null);
   };
   const onFailed = (e: { response?: { data?: { detail?: string; title?: string } } }) =>
     setSaveError(e.response?.data?.detail ?? e.response?.data?.title ?? 'Could not save. Please try again.');
 
   const ljMutation = useMutation({
-    mutationFn: () => otherIncomingFundsApi.record({
-      memberId: ljForm.memberId,
-      amount: Number(ljForm.amount),
-      paidDate: ljForm.paidDate,
-      remarks: ljForm.remarks.trim(),
-    }),
+    mutationFn: () => {
+      const body = {
+        amount: Number(ljForm.amount),
+        paidDate: ljForm.paidDate,
+        remarks: ljForm.remarks.trim(),
+      };
+      // The member is not part of a correction: money in from someone else is a different
+      // receipt, not a restatement of this one.
+      return editingLjId
+        ? otherIncomingFundsApi.update(editingLjId, body)
+        : otherIncomingFundsApi.record({ ...body, memberId: ljForm.memberId });
+    },
     onSuccess: () => {
       // Income, so it moves the summary, the ledger and the trial balance together.
       for (const k of ['other-incoming-funds', 'finance-summary', 'transactions', 'trial-balance']) {
         qc.invalidateQueries({ queryKey: [k] });
       }
       setShowAddLj(false);
+      setEditingLjId(null);
     },
     onError: (e: { response?: { data?: { detail?: string } } }) =>
       setLjError(e.response?.data?.detail ?? 'Could not record the incoming funds'),
   });
 
   const expMutation = useMutation({
-    mutationFn: () => financeApi.createExpense({
-      ...expForm,
-      amount: Number(expForm.amount),
-    }),
+    mutationFn: () => {
+      const body = { ...expForm, amount: Number(expForm.amount) };
+      return editingId ? financeApi.updateExpense(editingId, body) : financeApi.createExpense(body);
+    },
     onSuccess: () => onSaved('expenses'),
     onError: onFailed,
   });
 
   const fdMutation = useMutation({
-    mutationFn: () => financeApi.createFixedDeposit({
-      ...fdForm,
-      amount: Number(fdForm.amount),
-      interestRate: Number(fdForm.interestRate),
-      notes: fdForm.notes || undefined,
-    }),
+    mutationFn: () => {
+      const body = {
+        ...fdForm,
+        amount: Number(fdForm.amount),
+        interestRate: Number(fdForm.interestRate),
+        notes: fdForm.notes || undefined,
+      };
+      return editingId ? financeApi.updateFixedDeposit(editingId, body) : financeApi.createFixedDeposit(body);
+    },
     onSuccess: () => onSaved('fixed-deposits'),
     onError: onFailed,
   });
 
+  /**
+   * Every removal on this page. The API refuses anything already verified, so the reason it
+   * gives belongs in the dialog rather than being swallowed.
+   */
+  const removal = useMutation({
+    mutationFn: (run: () => Promise<unknown>) => run(),
+    onSuccess: () => {
+      for (const k of ['expenses', 'fixed-deposits', 'other-incoming-funds', 'finance-summary', 'transactions', 'trial-balance']) {
+        qc.invalidateQueries({ queryKey: [k] });
+      }
+      setConfirming(null);
+    },
+  });
+
+  const removalError = (removal.error as { response?: { data?: { detail?: string } } } | null)
+    ?.response?.data?.detail;
+
+  const closeConfirm = () => { removal.reset(); setConfirming(null); };
+
+  // A withdrawal already recorded is being restated rather than made afresh.
+  const correctingWithdrawal = withdrawing?.status === 'Withdrawn';
+
   const withdrawMutation = useMutation({
-    mutationFn: () => financeApi.withdrawFixedDeposit(withdrawing!.id, {
-      interestEarned: Number(withdrawForm.interestEarned || 0),
-      withdrawnAt: `${withdrawForm.withdrawnAt}T00:00:00Z`,
-    }),
+    mutationFn: () => {
+      const body = {
+        interestEarned: Number(withdrawForm.interestEarned || 0),
+        withdrawnAt: `${withdrawForm.withdrawnAt}T00:00:00Z`,
+      };
+      return correctingWithdrawal
+        ? financeApi.reviseWithdrawal(withdrawing!.id, body)
+        : financeApi.withdrawFixedDeposit(withdrawing!.id, body);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['fixed-deposits'] });
       qc.invalidateQueries({ queryKey: ['finance-summary'] });
@@ -152,14 +200,63 @@ export default function Finance() {
       setWithdrawError(e.response?.data?.detail ?? e.response?.data?.title ?? 'Could not withdraw. Please try again.'),
   });
 
-  /** Opens the withdrawal dialog with the expected interest as the starting figure. */
+  /**
+   * Opens the withdrawal dialog. A new withdrawal starts from the interest expected at
+   * maturity; correcting one starts from what was actually recorded.
+   */
   const openWithdraw = (fd: FixedDeposit) => {
     setWithdrawError('');
-    setWithdrawForm({
-      interestEarned: String(Math.round((fd.expectedMaturityAmount - fd.amount) * 100) / 100),
-      withdrawnAt: todayIso(),
-    });
+    setWithdrawForm(fd.status === 'Withdrawn'
+      ? {
+          interestEarned: String(fd.interestEarned ?? 0),
+          withdrawnAt: (fd.withdrawnAt ?? todayIso()).slice(0, 10),
+        }
+      : {
+          interestEarned: String(Math.round((fd.expectedMaturityAmount - fd.amount) * 100) / 100),
+          withdrawnAt: todayIso(),
+        });
     setWithdrawing(fd);
+  };
+
+  /** Reopens the add form on an existing expense or placement, to correct it. */
+  const openEditExpense = (e: Expense) => {
+    setExpForm({
+      amount: String(e.amount),
+      category: e.category,
+      description: e.description,
+      expenseDate: e.expenseDate.slice(0, 10),
+    });
+    setErrors({});
+    setSaveError('');
+    setEditingId(e.id);
+    setShowAdd(true);
+  };
+
+  const openEditFd = (fd: FixedDeposit) => {
+    setFdForm({
+      institutionName: fd.institutionName,
+      amount: String(fd.amount),
+      interestRate: String(fd.interestRate),
+      startDate: fd.startDate.slice(0, 10),
+      maturityDate: fd.maturityDate.slice(0, 10),
+      notes: fd.notes ?? '',
+    });
+    setErrors({});
+    setSaveError('');
+    setEditingId(fd.id);
+    setShowAdd(true);
+  };
+
+  const openEditLj = (r: OtherIncomingFund) => {
+    setLjForm({
+      memberId: r.memberId,
+      amount: String(r.amount),
+      paidDate: r.paidDate.slice(0, 10),
+      remarks: r.remarks,
+    });
+    setLjError('');
+    setEditingLjId(r.id);
+    setShowAddLj(true);
   };
 
   // Always from a blank form: whatever was typed last time — saved or abandoned — is gone.
@@ -167,6 +264,7 @@ export default function Finance() {
     if (tab === 'other-income') {
       setLjForm(emptyLj());
       setLjError('');
+      setEditingLjId(null);
       setShowAddLj(true);
       return;
     }
@@ -174,6 +272,7 @@ export default function Finance() {
     setFdForm(emptyFd());
     setErrors({});
     setSaveError('');
+    setEditingId(null);
     setShowAdd(true);
   };
 
@@ -191,6 +290,9 @@ export default function Finance() {
   const totalExpenses = (expenses ?? []).filter(e => e.isVerified).reduce((s, e) => s + e.amount, 0);
   const totalFds = (fds ?? []).filter(f => f.isVerified && !f.isWithdrawalVerified).reduce((s, f) => s + f.amount, 0);
   const totalOtherIncome = (otherIncome ?? []).filter(r => r.isVerified).reduce((s, r) => s + r.amount, 0);
+  // The tables gain an actions column for an admin, and their spanning rows follow it.
+  const expenseCols = isGroupAdmin ? 5 : 4;
+  const incomeCols = isGroupAdmin ? 5 : 4;
   const activeFds = (fds ?? []).filter(f => f.status === 'Active');
   const maturedFds = (fds ?? []).filter(f => f.status === 'Matured');
   const awaitingVerification =
@@ -235,7 +337,9 @@ export default function Finance() {
       {showAdd && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">{tab === 'expenses' ? 'Add Expense' : 'Add Fixed Deposit'}</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">
+              {editingId ? 'Edit' : 'Add'} {tab === 'expenses' ? 'Expense' : 'Fixed Deposit'}
+            </h2>
             {saveError && <p className="text-red-600 text-sm mb-3 bg-red-50 p-2 rounded">{saveError}</p>}
             {tab === 'expenses' ? (
               <div className="space-y-3">
@@ -309,7 +413,7 @@ export default function Finance() {
               </div>
             )}
             <div className="flex gap-3 mt-5">
-              <Button className="flex-1" onClick={() => setShowAdd(false)}>Cancel</Button>
+              <Button className="flex-1" onClick={() => { setShowAdd(false); setEditingId(null); }}>Cancel</Button>
               <Button variant="primary" className="flex-1" onClick={save} disabled={saving}>
                 {saving ? 'Saving...' : 'Save'}
               </Button>
@@ -326,7 +430,9 @@ export default function Finance() {
         return (
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-              <h2 className="text-lg font-semibold text-gray-800">Withdraw Fixed Deposit</h2>
+              <h2 className="text-lg font-semibold text-gray-800">
+                {correctingWithdrawal ? 'Edit Withdrawal' : 'Withdraw Fixed Deposit'}
+              </h2>
               <p className="text-xs text-gray-500 mt-0.5 mb-4">
                 {withdrawing.institutionName} · {formatCurrency(withdrawing.amount)} at {withdrawing.interestRate}% · matures {formatDate(withdrawing.maturityDate)}
               </p>
@@ -369,7 +475,9 @@ export default function Finance() {
                   className="flex-1"
                   disabled={withdrawMutation.isPending || entered < 0 || !withdrawForm.withdrawnAt}
                   onClick={() => { setWithdrawError(''); withdrawMutation.mutate(); }}>
-                  {withdrawMutation.isPending ? 'Withdrawing...' : 'Withdraw'}
+                  {withdrawMutation.isPending
+                    ? (correctingWithdrawal ? 'Saving...' : 'Withdrawing...')
+                    : (correctingWithdrawal ? 'Save Changes' : 'Withdraw')}
                 </Button>
               </div>
             </div>
@@ -381,7 +489,7 @@ export default function Finance() {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
-              <tr>{['Category', 'Description', 'Date', 'Amount'].map(h => (
+              <tr>{['Category', 'Description', 'Date', 'Amount', ...(isGroupAdmin ? ['Actions'] : [])].map(h => (
                 <th key={h} className={`px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider ${h === 'Amount' ? 'text-right' : 'text-left'}`}>{h}</th>
               ))}</tr>
             </thead>
@@ -395,16 +503,38 @@ export default function Finance() {
                   <td className="px-5 py-3.5 text-gray-600">{e.description}</td>
                   <td className="px-5 py-3.5 text-gray-500">{formatDate(e.expenseDate)}</td>
                   <td className="px-5 py-3.5 text-right"><Amount value={e.amount} side={e.isVerified ? 'debit' : 'inactive'} /></td>
+                  {/* Correctable right up until it is verified; after that the spend is in
+                      the books and only an opposite entry changes it. */}
+                  {isGroupAdmin && (
+                    <td className="px-5 py-3.5">
+                      {!e.isVerified && (
+                        <div className="flex items-center gap-2">
+                          <IconButton icon="edit" label="Edit expense" onClick={() => openEditExpense(e)} />
+                          <IconButton
+                            icon="delete"
+                            label="Delete expense"
+                            onClick={() => setConfirming({
+                              title: 'Delete this expense?',
+                              body: `This removes the unverified ${formatCurrency(e.amount)} recorded for ${e.category}.`,
+                              confirmLabel: 'Delete expense',
+                              run: () => financeApi.deleteExpense(e.id),
+                            })}
+                          />
+                        </div>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
-              {expensesLoading && <tr><td colSpan={4} className="text-center py-10 text-gray-400">Loading...</td></tr>}
-              {!expensesLoading && !expenses?.length && <tr><td colSpan={4} className="text-center py-10 text-gray-400">No expenses recorded</td></tr>}
+              {expensesLoading && <tr><td colSpan={expenseCols} className="text-center py-10 text-gray-400">Loading...</td></tr>}
+              {!expensesLoading && !expenses?.length && <tr><td colSpan={expenseCols} className="text-center py-10 text-gray-400">No expenses recorded</td></tr>}
             </tbody>
             {!!expenses?.length && (
               <tfoot>
                 <tr className="border-t border-gray-100 bg-gray-50">
                   <td colSpan={3} className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Total verified</td>
                   <td className="px-5 py-3 text-right"><Amount value={totalExpenses} side="debit" /></td>
+                  {isGroupAdmin && <td />}
                 </tr>
               </tfoot>
             )}
@@ -467,6 +597,38 @@ export default function Finance() {
                       )}
                     </>
                   )}
+                  {/* Each movement is correctable until it is verified, and they are checked
+                      separately — so the placement and the withdrawal are answered for apart. */}
+                  {isGroupAdmin && !fd.isVerified && (
+                    <div className="flex items-center gap-2 justify-end mt-2">
+                      <IconButton icon="edit" label="Edit placement" onClick={() => openEditFd(fd)} />
+                      <IconButton
+                        icon="delete"
+                        label="Delete placement"
+                        onClick={() => setConfirming({
+                          title: 'Delete this fixed deposit?',
+                          body: `This removes the unverified ${formatCurrency(fd.amount)} placement with ${fd.institutionName}.`,
+                          confirmLabel: 'Delete placement',
+                          run: () => financeApi.deleteFixedDeposit(fd.id),
+                        })}
+                      />
+                    </div>
+                  )}
+                  {isGroupAdmin && fd.status === 'Withdrawn' && !fd.isWithdrawalVerified && (
+                    <div className="flex items-center gap-2 justify-end mt-2">
+                      <IconButton icon="edit" label="Edit withdrawal" onClick={() => openWithdraw(fd)} />
+                      <IconButton
+                        icon="delete"
+                        label="Take back withdrawal"
+                        onClick={() => setConfirming({
+                          title: 'Take back this withdrawal?',
+                          body: `The deposit with ${fd.institutionName} goes back to being placed, as though it had never been withdrawn. The placement itself is untouched.`,
+                          confirmLabel: 'Take it back',
+                          run: () => financeApi.cancelWithdrawal(fd.id),
+                        })}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -487,7 +649,7 @@ export default function Finance() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  {['Member', 'Paid on', 'Remarks', 'Amount'].map((h, i) => (
+                  {['Member', 'Paid on', 'Remarks', 'Amount', ...(isGroupAdmin ? ['Actions'] : [])].map((h, i) => (
                     <th key={h} className={`px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap ${i === 3 ? 'text-right' : 'text-left'}`}>
                       {h}
                     </th>
@@ -496,7 +658,7 @@ export default function Finance() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {ljLoading && (
-                  <tr><td colSpan={4} className="text-center py-10 text-gray-400">Loading...</td></tr>
+                  <tr><td colSpan={incomeCols} className="text-center py-10 text-gray-400">Loading...</td></tr>
                 )}
                 {!ljLoading && (otherIncome ?? []).map(r => (
                   <tr key={r.id} className="hover:bg-gray-50 transition-colors">
@@ -507,10 +669,29 @@ export default function Finance() {
                     <td className="px-5 py-3.5 text-gray-500 whitespace-nowrap">{formatDate(r.paidDate)}</td>
                     <td className="px-5 py-3.5 text-gray-600">{r.remarks}</td>
                     <td className="px-5 py-3.5 text-right"><Amount value={r.amount} side={r.isVerified ? 'credit' : 'inactive'} /></td>
+                    {isGroupAdmin && (
+                      <td className="px-5 py-3.5">
+                        {!r.isVerified && (
+                          <div className="flex items-center gap-2">
+                            <IconButton icon="edit" label="Edit receipt" onClick={() => openEditLj(r)} />
+                            <IconButton
+                              icon="delete"
+                              label="Delete receipt"
+                              onClick={() => setConfirming({
+                                title: 'Delete this receipt?',
+                                body: `This removes the unverified ${formatCurrency(r.amount)} recorded from ${r.memberName}.`,
+                                confirmLabel: 'Delete receipt',
+                                run: () => otherIncomingFundsApi.remove(r.id),
+                              })}
+                            />
+                          </div>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
                 {!ljLoading && !otherIncome?.length && (
-                  <tr><td colSpan={4} className="text-center py-10 text-gray-400">No incoming funds recorded</td></tr>
+                  <tr><td colSpan={incomeCols} className="text-center py-10 text-gray-400">No incoming funds recorded</td></tr>
                 )}
                 {!!otherIncome?.length && (
                   <tr className="bg-gray-50 font-semibold">
@@ -518,6 +699,7 @@ export default function Finance() {
                     <td className="px-5 py-3 text-right">
                       <Amount value={totalOtherIncome} side="credit" />
                     </td>
+                    {isGroupAdmin && <td />}
                   </tr>
                 )}
               </tbody>
@@ -529,7 +711,9 @@ export default function Finance() {
       {showAddLj && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Record Incoming Funds</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">
+              {editingLjId ? 'Edit Incoming Funds' : 'Record Incoming Funds'}
+            </h2>
             {ljError && <p className="text-red-600 text-sm mb-3 bg-red-50 p-2 rounded">{ljError}</p>}
             <div className="space-y-3">
               <div>
@@ -538,10 +722,16 @@ export default function Finance() {
                   value={ljForm.memberId}
                   onChange={e => setLjForm(f => ({ ...f, memberId: e.target.value }))}
                   className="mt-1 w-full"
+                  disabled={!!editingLjId}
                 >
                   <option value="">Select a member</option>
                   {(members ?? []).map(m => <option key={m.id} value={m.id}>{m.fullName}</option>)}
                 </Select>
+                {editingLjId && (
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Money in from someone else is a separate receipt, so this stays as it was.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-xs text-gray-600 font-medium">Amount (NPR)</label>
@@ -572,18 +762,31 @@ export default function Finance() {
               </div>
             </div>
             <div className="flex gap-3 mt-5">
-              <Button className="flex-1" onClick={() => setShowAddLj(false)}>Cancel</Button>
+              <Button className="flex-1" onClick={() => { setShowAddLj(false); setEditingLjId(null); }}>Cancel</Button>
               <Button
                 variant="primary"
                 className="flex-1"
                 disabled={ljMutation.isPending || !ljForm.memberId || !ljForm.amount || !ljForm.remarks.trim()}
                 onClick={() => { setLjError(''); ljMutation.mutate(); }}
               >
-                {ljMutation.isPending ? 'Saving...' : 'Record'}
+                {ljMutation.isPending ? 'Saving...' : editingLjId ? 'Save Changes' : 'Record'}
               </Button>
             </div>
           </div>
         </div>
+      )}
+
+      {confirming && (
+        <ConfirmDialog
+          title={confirming.title}
+          body={confirming.body}
+          confirmLabel={confirming.confirmLabel}
+          busyLabel="Deleting..."
+          busy={removal.isPending}
+          error={removalError}
+          onConfirm={() => removal.mutate(confirming.run)}
+          onCancel={closeConfirm}
+        />
       )}
     </div>
   );

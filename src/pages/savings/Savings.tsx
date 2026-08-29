@@ -510,7 +510,6 @@ export default function Savings() {
                       <IconButton
                         icon="verify"
                         label="Verify deposit"
-                        variant="primary"
                         onClick={() => setVerifying(d)}
                       />
                     )}
@@ -524,7 +523,6 @@ export default function Savings() {
                         <IconButton
                           icon="delete"
                           label="Delete deposit"
-                          variant="danger"
                           onClick={() => setDeleting(d)}
                         />
                       </>
@@ -561,7 +559,7 @@ export default function Savings() {
           body={`This records ${formatCurrency(verifying.amount)} from ${verifying.memberName} in the group's books. It cannot be undone.`}
           confirmLabel="Verify deposit"
           busyLabel="Verifying..."
-          variant="primary"
+          variant="success"
           busy={verifyMutation.isPending}
           onConfirm={() => { verifyMutation.mutate(verifying.id); setVerifying(null); }}
           onCancel={() => setVerifying(null)}

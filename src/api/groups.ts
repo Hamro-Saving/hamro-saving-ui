@@ -33,8 +33,10 @@ export const membersApi = {
     phoneNumber?: string | null;
     address?: string | null;
   }) => apiClient.put<Member>(`/members/${id}`, body).then(r => r.data),
+  // Leaving a group is a change of standing, not a deletion: the person's deposits, loans
+  // and payments are the group's history and the books are built from them.
   deactivate: (id: string) => apiClient.put(`/members/${id}/deactivate`),
-  delete: (id: string) => apiClient.delete(`/members/${id}`),
+  activate: (id: string) => apiClient.put(`/members/${id}/activate`),
   assignAdmin: (id: string) => apiClient.put(`/members/${id}/assign-admin`),
   removeAdmin: (id: string) => apiClient.put(`/members/${id}/remove-admin`),
   resendInvite: (id: string) => apiClient.post(`/members/${id}/resend-invite`),

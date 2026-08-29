@@ -46,7 +46,8 @@ interface MemberTableProps {
   canEdit: boolean;
   emptyLabel: string;
   onEdit: (member: Member) => void;
-  onDelete: (member: Member) => void;
+  /** Taking someone out of the group, or putting them back. Never a deletion — see Members. */
+  onSetActive: (member: Member, active: boolean) => void;
   onResend: (member: Member) => void;
   /** Opening a person's summary. The row actions are excluded from it. */
   onOpen: (member: Member) => void;
@@ -57,7 +58,7 @@ interface MemberTableProps {
  * The group roster. Members and non-members are the same record differing only in role,
  * so they share one table rather than two that drift apart.
  */
-export default function MemberTable({ rows, loading, canEdit, emptyLabel, onEdit, onDelete, onResend, onOpen, resendingId, money = 'deposited' }: MemberTableProps) {
+export default function MemberTable({ rows, loading, canEdit, emptyLabel, onEdit, onSetActive, onResend, onOpen, resendingId, money = 'deposited' }: MemberTableProps) {
   const moneyHeader = money === 'owed' ? 'Owed' : 'Deposited';
   const headers = ['Name', 'Contact', moneyHeader, 'Status', ...(canEdit ? ['Actions'] : [])];
 
@@ -113,7 +114,6 @@ export default function MemberTable({ rows, loading, canEdit, emptyLabel, onEdit
                           <IconButton
                             icon="resend"
                             label={resendingId === m.id ? 'Sending invite...' : 'Resend invite'}
-                            variant="warning"
                             onClick={e => { e.stopPropagation(); onResend(m); }}
                             disabled={resendingId === m.id}
                           />
@@ -156,8 +156,18 @@ export default function MemberTable({ rows, loading, canEdit, emptyLabel, onEdit
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
                       <IconButton icon="edit" label="Edit member" onClick={e => { e.stopPropagation(); onEdit(m); }} />
-                      {m.isActive && (
-                        <IconButton icon="delete" label="Delete member" variant="danger" onClick={e => { e.stopPropagation(); onDelete(m); }} />
+                      {m.isActive ? (
+                        <IconButton
+                          icon="deactivate"
+                          label={m.groupRole === 'NonMember' ? 'Deactivate borrower' : 'Deactivate member'}
+                          onClick={e => { e.stopPropagation(); onSetActive(m, false); }}
+                        />
+                      ) : (
+                        <IconButton
+                          icon="activate"
+                          label={m.groupRole === 'NonMember' ? 'Reactivate borrower' : 'Reactivate member'}
+                          onClick={e => { e.stopPropagation(); onSetActive(m, true); }}
+                        />
                       )}
                     </div>
                   </td>

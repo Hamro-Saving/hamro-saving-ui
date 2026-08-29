@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { jwtDecode } from 'jwt-decode';
 import type { AuthUser, GroupRole, Membership } from '../api/types';
 import { authApi } from '../api/auth';
+import { setSessionExpiredHandler } from '../api/client';
 
 const NAME_ID = 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier';
 const EMAIL = 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress';
@@ -103,6 +104,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     queryClient.clear();
   }, [queryClient]);
+
+  // A token is only good until it expires, and nothing else tells the app when that happens:
+  // with no request in flight, a session could sit there looking signed in for hours. So the
+  // moment is scheduled from the token itself.
+  useEffect(() => {
+    if (!token) return;
+
+    let expiresAt: number;
+    try {
+      expiresAt = jwtDecode<JwtPayload>(token).exp * 1000;
+    } catch {
+      logout();
+      return;
+    }
+
+    const signOutIfExpired = () => {
+      if (Date.now() >= expiresAt) logout();
+    };
+
+    // A timer alone is not enough: it is capped at ~24.8 days, and it does not run while the
+    // machine is asleep — so a laptop closed on a live session and opened on a dead one would
+    // never fire it. Coming back to the tab is therefore also a moment to check.
+    const timer = window.setTimeout(
+      signOutIfExpired,
+      Math.min(Math.max(expiresAt - Date.now(), 0), 2_147_483_647),
+    );
+    document.addEventListener('visibilitychange', signOutIfExpired);
+    window.addEventListener('focus', signOutIfExpired);
+
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', signOutIfExpired);
+      window.removeEventListener('focus', signOutIfExpired);
+    };
+  }, [token, logout]);
+
+  // The other way a session ends: the API rejecting it. Routed through the same sign-out so
+  // the cached group data goes with it, rather than a page reload that leaves state behind.
+  useEffect(() => {
+    setSessionExpiredHandler(logout);
+    return () => setSessionExpiredHandler(null);
+  }, [logout]);
 
   const switchGroup = useCallback(
     async (groupId: string): Promise<AuthUser> => {

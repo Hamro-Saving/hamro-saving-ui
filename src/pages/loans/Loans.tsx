@@ -97,7 +97,10 @@ export default function Loans() {
       setEditError(e.response?.data?.detail ?? 'Could not save the changes.'),
   });
 
-  const borrowers = form.borrowerType === 'Member' ? (members ?? []) : (nonMembers ?? []);
+  // Deactivated people are not lent to — for a non-member that is the whole of what
+  // deactivation means, and for a member it follows from having left the group.
+  const borrowers = (form.borrowerType === 'Member' ? (members ?? []) : (nonMembers ?? []))
+    .filter(b => b.isActive);
 
   return (
     <div className="p-6 space-y-6">

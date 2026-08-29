@@ -19,8 +19,11 @@ export function useLoanActions(loanId: string) {
   const decline = useMutation({ mutationFn: () => loansApi.declineLoan(loanId), onSuccess: invalidate });
   const cancel = useMutation({ mutationFn: () => loansApi.cancelLoan(loanId), onSuccess: invalidate });
   const verifyPayment = useMutation({ mutationFn: (paymentId: string) => loansApi.verifyPayment(paymentId), onSuccess: invalidate });
+  // Only an unverified payment can go. The API winds the loan back and applies what is left,
+  // so the interest this payment settled runs again.
+  const deletePayment = useMutation({ mutationFn: (paymentId: string) => loansApi.deletePayment(paymentId), onSuccess: invalidate });
 
   const busy = approve.isPending || decline.isPending || cancel.isPending;
 
-  return { approve, decline, cancel, verifyPayment, busy };
+  return { approve, decline, cancel, verifyPayment, deletePayment, busy };
 }

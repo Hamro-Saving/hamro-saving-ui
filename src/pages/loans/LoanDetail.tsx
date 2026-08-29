@@ -11,6 +11,7 @@ import { STATUS_COLORS, isLive, wasReducedAtDisbursement } from './loanMath';
 import { useLoanActions } from './useLoanActions';
 import LoanWorkflowPanel from './LoanWorkflowPanel';
 import RecordPaymentModal from './RecordPaymentModal';
+import EditPaymentModal from './EditPaymentModal';
 import Amount from '../../components/Amount';
 import IconButton from '../../components/IconButton';
 
@@ -33,6 +34,9 @@ export default function LoanDetail() {
   const [showPayment, setShowPayment] = useState(false);
   // Verifying posts the payment to the books and cannot be undone.
   const [verifyingPayment, setVerifyingPayment] = useState<LoanPayment | null>(null);
+  // Only while unverified: once in the books a payment is corrected by an opposite entry.
+  const [editingPayment, setEditingPayment] = useState<LoanPayment | null>(null);
+  const [deletingPayment, setDeletingPayment] = useState<LoanPayment | null>(null);
 
   const { data: loan, isLoading, isError } = useQuery({
     queryKey: ['loan', id],
@@ -46,7 +50,14 @@ export default function LoanDetail() {
     enabled: !!id,
   });
 
-  const { verifyPayment } = useLoanActions(id);
+  const { verifyPayment, deletePayment } = useLoanActions(id);
+
+  // The API refuses a delete that would disturb something already posted — say a later
+  // payment on the loan that has since been verified — so the reason belongs in the dialog.
+  const deleteError = (deletePayment.error as { response?: { data?: { detail?: string } } } | null)
+    ?.response?.data?.detail;
+
+  const closeDelete = () => { deletePayment.reset(); setDeletingPayment(null); };
 
   if (isLoading) {
     return <div className="p-6"><div className="bg-white rounded-xl p-10 text-center text-gray-400 border border-gray-100">Loading loan...</div></div>;
@@ -141,8 +152,8 @@ export default function LoanDetail() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-50 text-xs text-gray-400 uppercase tracking-wide">
-                {['Date', 'Days', 'Interest', 'Principal', 'Total', 'Principal After', 'Status'].map(h => (
-                  <th key={h} className={`px-5 py-3 font-medium ${h === 'Date' || h === 'Status' ? 'text-left' : 'text-right'}`}>{h}</th>
+                {['Date', 'Days', 'Interest', 'Principal', 'Total', 'Principal After', 'Status', ...(isAdmin ? ['Actions'] : [])].map(h => (
+                  <th key={h} className={`px-5 py-3 font-medium ${h === 'Date' || h === 'Status' || h === 'Actions' ? 'text-left' : 'text-right'}`}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -168,14 +179,25 @@ export default function LoanDetail() {
                   <td className="px-5 py-3">
                     {p.isVerified
                       ? <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">Verified</span>
-                      : isAdmin
-                        ? <IconButton icon="verify" label="Verify payment" disabled={verifyPayment.isPending} onClick={() => setVerifyingPayment(p)} />
-                        : <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">Pending</span>}
+                      : <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">Pending</span>}
                   </td>
+                  {/* A payment can be corrected or removed right up until it is verified;
+                      after that it is in the books and only an opposite entry changes it. */}
+                  {isAdmin && (
+                    <td className="px-5 py-3">
+                      {!p.isVerified && (
+                        <div className="flex items-center gap-2">
+                          <IconButton icon="verify" label="Verify payment" disabled={verifyPayment.isPending} onClick={() => setVerifyingPayment(p)} />
+                          <IconButton icon="edit" label="Edit payment" onClick={() => setEditingPayment(p)} />
+                          <IconButton icon="delete" label="Delete payment" disabled={deletePayment.isPending} onClick={() => setDeletingPayment(p)} />
+                        </div>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
               {!payments?.length && (
-                <tr><td colSpan={7} className="text-center py-8 text-gray-400">No payments recorded yet</td></tr>
+                <tr><td colSpan={isAdmin ? 8 : 7} className="text-center py-8 text-gray-400">No payments recorded yet</td></tr>
               )}
             </tbody>
           </table>
@@ -191,13 +213,30 @@ export default function LoanDetail() {
 
       {showPayment && <RecordPaymentModal loan={loan} onClose={() => setShowPayment(false)} />}
 
+      {editingPayment && (
+        <EditPaymentModal loan={loan} payment={editingPayment} onClose={() => setEditingPayment(null)} />
+      )}
+
+      {deletingPayment && (
+        <ConfirmDialog
+          title="Delete this payment?"
+          body={`This removes the unverified ${formatCurrency(deletingPayment.amount)} recorded on ${formatDate(deletingPayment.paidDate)}. The interest it settled will start running again.`}
+          confirmLabel="Delete payment"
+          busyLabel="Deleting..."
+          busy={deletePayment.isPending}
+          error={deleteError}
+          onConfirm={() => deletePayment.mutate(deletingPayment.id, { onSuccess: closeDelete })}
+          onCancel={closeDelete}
+        />
+      )}
+
       {verifyingPayment && (
         <ConfirmDialog
           title="Verify this payment?"
           body={`This records ${formatCurrency(verifyingPayment.amount)} against the loan and cannot be undone.`}
           confirmLabel="Verify payment"
           busyLabel="Verifying..."
-          variant="primary"
+          variant="success"
           busy={verifyPayment.isPending}
           onConfirm={() => { verifyPayment.mutate(verifyingPayment.id); setVerifyingPayment(null); }}
           onCancel={() => setVerifyingPayment(null)}

@@ -71,7 +71,7 @@ function QueueRow({
             <Amount value={amount} side={side} />
           </p>
         </div>
-        <IconButton icon="verify" label={actionLabel} variant="success" onClick={onVerify} disabled={busy} />
+        <IconButton icon="verify" label={actionLabel} onClick={onVerify} disabled={busy} />
       </div>
     </div>
   );

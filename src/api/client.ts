@@ -24,18 +24,33 @@ apiClient.interceptors.request.use((config) => {
  */
 const PRE_AUTH_PATHS = ['/auth/login', '/auth/signup', '/auth/signup-info'];
 
+/**
+ * How the app is told a session has ended. AuthProvider registers itself here so the React
+ * tree can drop the signed-in user and the cached group data it was showing; without a
+ * handler there is nothing to clear state, so a full page load is the only way out.
+ */
+let sessionExpiredHandler: (() => void) | null = null;
+
+export function setSessionExpiredHandler(handler: (() => void) | null) {
+  sessionExpiredHandler = handler;
+}
+
 apiClient.interceptors.response.use(
   (res) => res,
   (err) => {
     const url: string = err.config?.url ?? '';
     const answersCredentials = PRE_AUTH_PATHS.some(path => url.startsWith(path));
 
-    // Bounce to the login screen when a session goes bad mid-use, but never on the way in:
-    // this is a full page load, so doing it for a failed sign-in remounts the form and wipes
-    // the "wrong email or password" the page had just set, leaving it silently blank.
+    // Sign out when a session goes bad mid-use — an expired token, a login disabled while
+    // someone was working — but never on the way in: a failed sign-in would remount the form
+    // and wipe the "wrong email or password" the page had just set, leaving it silently blank.
     if (err.response?.status === 401 && !answersCredentials) {
       localStorage.removeItem('hs_token');
-      window.location.href = '/login';
+      if (sessionExpiredHandler) {
+        sessionExpiredHandler();
+      } else {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(err);
   }

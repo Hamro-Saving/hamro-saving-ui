@@ -14,6 +14,23 @@ type Tab = 'members' | 'non-members';
 const emptyMember = () => ({ firstName: '', lastName: '', email: '', phoneNumber: '', address: '' });
 const emptyNonMember = () => ({ fullName: '', email: '', phoneNumber: '', address: '' });
 
+/**
+ * What deactivation actually costs this person. Both lose their sign-in; what else goes with
+ * it differs, because a non-member only ever borrowed from the group and never took part in
+ * running it.
+ */
+function activeChangeBody({ member, next }: { member: Member; next: boolean }): string {
+  if (member.groupRole === 'NonMember') {
+    return next
+      ? `${member.fullName} can sign in again and be given a new loan.`
+      : `${member.fullName} can no longer sign in or be given a new loan. Everything they have borrowed and repaid stays on record, and anything still outstanding is still owed. You can put them back at any time.`;
+  }
+
+  return next
+    ? `${member.fullName} takes their place in the group again, along with their sign-in.`
+    : `${member.fullName} keeps every deposit, loan and payment on record, but loses their place in the group — no vote, no access, and no sign-in unless they belong to another group. You can put them back at any time.`;
+}
+
 export default function Members() {
   const { user, isGroupAdmin } = useAuth();
   const navigate = useNavigate();
@@ -33,8 +50,9 @@ export default function Members() {
   const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', phoneNumber: '', address: '', groupRole: 'Member' as GroupRole });
   const [editError, setEditError] = useState('');
 
-  // Delete member state
-  const [deleteMemberId, setDeleteMemberId] = useState<string | null>(null);
+  // Taking someone out of the group, or putting them back. Members and non-members alike:
+  // both are the same record, and both are owed the same history.
+  const [activeChange, setActiveChange] = useState<{ member: Member; next: boolean } | null>(null);
 
   // Add non-member state
   const [showAddNm, setShowAddNm] = useState(false);
@@ -47,7 +65,6 @@ export default function Members() {
   const [editNmError, setEditNmError] = useState('');
 
   // Delete non-member state
-  const [deleteNmId, setDeleteNmId] = useState<string | null>(null);
 
   const { data: members = [], isLoading: membersLoading } = useQuery({
     queryKey: ['members', user?.activeGroupId],
@@ -111,10 +128,22 @@ export default function Members() {
       setResendNotice({ ok: false, text: e.response?.data?.detail ?? 'Could not resend the invite.' }),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => membersApi.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['members'] }); setDeleteMemberId(null); },
+  const setActiveMutation = useMutation({
+    mutationFn: ({ id, next }: { id: string; next: boolean }) =>
+      next ? membersApi.activate(id) : membersApi.deactivate(id),
+    onSuccess: () => {
+      // One roster, split across two tables by role, so both are refetched.
+      qc.invalidateQueries({ queryKey: ['members'] });
+      qc.invalidateQueries({ queryKey: ['non-members'] });
+      setActiveChange(null);
+    },
   });
+
+  // The group's last admin cannot be taken out of it, so the refusal needs saying.
+  const setActiveError = (setActiveMutation.error as { response?: { data?: { detail?: string } } } | null)
+    ?.response?.data?.detail;
+
+  const closeActiveChange = () => { setActiveMutation.reset(); setActiveChange(null); };
 
   // Non-member mutations
   const addNmMutation = useMutation({
@@ -139,11 +168,6 @@ export default function Members() {
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['non-members'] }); setEditNm(null); setEditNmError(''); },
     onError: (e: { response?: { data?: { detail?: string } } }) => setEditNmError(e.response?.data?.detail ?? 'Failed to update non-member'),
-  });
-
-  const deleteNmMutation = useMutation({
-    mutationFn: (id: string) => membersApi.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['non-members'] }); setDeleteNmId(null); },
   });
 
   // Always from a blank form: whatever was typed last time — saved or abandoned — is gone.
@@ -197,7 +221,7 @@ export default function Members() {
           emptyLabel="No members found"
           onEdit={openEditMember}
           onOpen={m => navigate(`/members/${m.id}`)}
-          onDelete={m => setDeleteMemberId(m.id)}
+          onSetActive={(m, next) => setActiveChange({ member: m, next })}
           onResend={r => resendMutation.mutate(r.id)}
           resendingId={resendMutation.isPending ? resendMutation.variables : null}
         />
@@ -212,7 +236,7 @@ export default function Members() {
           money="owed"
           onEdit={openEditNm}
           onOpen={n => navigate(`/members/${n.id}`)}
-          onDelete={n => setDeleteNmId(n.id)}
+          onSetActive={(n, next) => setActiveChange({ member: n, next })}
           onResend={r => resendMutation.mutate(r.id)}
           resendingId={resendMutation.isPending ? resendMutation.variables : null}
         />
@@ -284,16 +308,21 @@ export default function Members() {
         </div>
       )}
 
-      {/* Delete Member Confirm */}
-      {deleteMemberId && (
+      {/* Deactivate / reactivate. Nobody is ever deleted: their deposits, loans and payments
+          are the group's history, and the books are built from them. */}
+      {activeChange && (
         <ConfirmDialog
-          title="Delete this member?"
-          body="This permanently removes the member and their access. It cannot be undone."
-          confirmLabel="Delete"
-          busyLabel="Deleting..."
-          busy={deleteMutation.isPending}
-          onConfirm={() => deleteMutation.mutate(deleteMemberId)}
-          onCancel={() => setDeleteMemberId(null)}
+          title={activeChange.next
+            ? (activeChange.member.groupRole === 'NonMember' ? 'Reactivate this borrower?' : 'Put this person back in the group?')
+            : (activeChange.member.groupRole === 'NonMember' ? 'Deactivate this borrower?' : 'Deactivate this person?')}
+          body={activeChangeBody(activeChange)}
+          confirmLabel={activeChange.next ? 'Reactivate' : 'Deactivate'}
+          busyLabel={activeChange.next ? 'Reactivating...' : 'Deactivating...'}
+          variant={activeChange.next ? 'success' : 'dangerSolid'}
+          busy={setActiveMutation.isPending}
+          error={setActiveError}
+          onConfirm={() => setActiveMutation.mutate({ id: activeChange.member.id, next: activeChange.next })}
+          onCancel={closeActiveChange}
         />
       )}
 
@@ -350,18 +379,6 @@ export default function Members() {
         </div>
       )}
 
-      {/* Delete Non-Member Confirm */}
-      {deleteNmId && (
-        <ConfirmDialog
-          title="Delete this non-member?"
-          body="This permanently removes the borrower. It cannot be undone."
-          confirmLabel="Delete"
-          busyLabel="Deleting..."
-          busy={deleteNmMutation.isPending}
-          onConfirm={() => deleteNmMutation.mutate(deleteNmId)}
-          onCancel={() => setDeleteNmId(null)}
-        />
-      )}
     </div>
   );
 }

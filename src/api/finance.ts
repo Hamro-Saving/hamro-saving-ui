@@ -68,6 +68,13 @@ export const loansApi = {
     apiClient.get<LoanPaymentListItem[]>("/loan-payments", { params }).then((r) => r.data),
   verifyPayment: (paymentId: string) =>
     apiClient.put(`/loan-payments/${paymentId}/verify`),
+  // Only while unverified. The API replays the loan's remaining payments over the correction,
+  // so the interest that ran after it is settled again from the new position.
+  updatePayment: (
+    paymentId: string,
+    body: { principalAmount: number; interestAmount: number; paidDate: string; notes?: string },
+  ) => apiClient.put(`/loan-payments/${paymentId}`, body).then((r) => r.data),
+  deletePayment: (paymentId: string) => apiClient.delete(`/loan-payments/${paymentId}`),
   approveLoan: (id: string) =>
     apiClient.post(`/loans/${id}/approve`).then((r) => r.data),
   declineLoan: (id: string) =>
@@ -90,6 +97,11 @@ export const financeApi = {
       .then((r) => r.data),
   createExpense: (body: Partial<Expense>) =>
     apiClient.post<{ id: string }>("/expenses", body).then((r) => r.data),
+  // Both only while unverified: after that the spend is in the books and is corrected by an
+  // opposite entry instead.
+  updateExpense: (id: string, body: { amount: number; category: string; description: string; expenseDate: string }) =>
+    apiClient.put(`/expenses/${id}`, body).then((r) => r.data),
+  deleteExpense: (id: string) => apiClient.delete(`/expenses/${id}`),
   verifyExpense: (id: string) => apiClient.put(`/expenses/${id}/verify`),
   getFixedDeposits: (params?: { groupId?: string }) =>
     apiClient
@@ -99,11 +111,22 @@ export const financeApi = {
     apiClient
       .post<{ id: string }>("/fixed-deposits", body)
       .then((r) => r.data),
+  updateFixedDeposit: (
+    id: string,
+    body: { institutionName: string; amount: number; interestRate: number; startDate: string; maturityDate: string; notes?: string },
+  ) => apiClient.put(`/fixed-deposits/${id}`, body).then((r) => r.data),
+  deleteFixedDeposit: (id: string) => apiClient.delete(`/fixed-deposits/${id}`),
   // A deposit cannot be withdrawn until this has happened.
   verifyFixedDeposit: (id: string) => apiClient.put(`/fixed-deposits/${id}/verify`),
   // Closes the deposit and records the interest the institution actually returned
   withdrawFixedDeposit: (id: string, body: { interestEarned: number; withdrawnAt: string }) =>
     apiClient.put(`/fixed-deposits/${id}/withdraw`, body).then((r) => r.data),
+  // Restating a withdrawal already recorded. Kept apart from withdrawFixedDeposit so that
+  // withdrawing stays a once-only act and a second attempt at it is still refused.
+  reviseWithdrawal: (id: string, body: { interestEarned: number; withdrawnAt: string }) =>
+    apiClient.put(`/fixed-deposits/${id}/revise-withdrawal`, body).then((r) => r.data),
+  // Takes back an unverified withdrawal, leaving the deposit placed as it was.
+  cancelWithdrawal: (id: string) => apiClient.delete(`/fixed-deposits/${id}/withdraw`),
   // A second movement, verified on its own.
   verifyFixedDepositWithdrawal: (id: string) =>
     apiClient.put(`/fixed-deposits/${id}/verify-withdrawal`),
@@ -128,5 +151,8 @@ export const otherIncomingFundsApi = {
     apiClient.get<OtherIncomingFund[]>('/other-incoming-funds', { params }).then(r => r.data),
   record: (body: { memberId: string; amount: number; paidDate: string; remarks: string }) =>
     apiClient.post<{ id: string }>('/other-incoming-funds', body).then(r => r.data),
+  update: (id: string, body: { amount: number; paidDate: string; remarks: string }) =>
+    apiClient.put(`/other-incoming-funds/${id}`, body).then((r) => r.data),
+  remove: (id: string) => apiClient.delete(`/other-incoming-funds/${id}`),
   verify: (id: string) => apiClient.put(`/other-incoming-funds/${id}/verify`),
 };
