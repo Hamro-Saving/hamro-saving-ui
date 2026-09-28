@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, type Location } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getDefaultRoute } from '../../routes';
 import AuthShell from '../../components/AuthShell';
@@ -8,6 +8,8 @@ import PasswordInput from '../../components/PasswordInput';
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: Location } | null)?.from;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -19,7 +21,10 @@ export default function Login() {
     setLoading(true);
     try {
       const loggedInUser = await login(email, password);
-      navigate(getDefaultRoute(loggedInUser), { replace: true });
+      // Back to the page that sent them here, if any; a page they turn out not to have
+      // access to is bounced to their default by its own guard.
+      const destination = from ? `${from.pathname}${from.search}${from.hash}` : getDefaultRoute(loggedInUser);
+      navigate(destination, { replace: true });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setError(msg ?? 'Invalid email or password.');
