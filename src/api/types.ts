@@ -38,7 +38,7 @@ export interface AuthUser {
 
 export interface Group { id: string; name: string; code: string; description?: string; isActive: boolean; memberInterestRate: number; nonMemberInterestRate: number; validFrom?: string | null; validTo?: string | null; memberCount: number; createdAt: string; updatedAt: string; }
 
-export interface Member { id: string; email?: string | null; firstName: string; lastName?: string | null; fullName: string; groupRole: GroupRole; groupId: string; isActive: boolean; hasAccount: boolean; totalDeposits: number; outstandingPrincipal: number; outstandingInterest: number; phoneNumber?: string | null; address?: string | null; createdAt: string; }
+export interface Member { id: string; email?: string | null; firstName: string; lastName?: string | null; fullName: string; groupRole: GroupRole; groupId: string; isActive: boolean; hasAccount: boolean; totalDeposits: number; outstandingPrincipal: number; outstandingInterest: number; phoneNumber?: string | null; address?: string | null; lastLoginAt?: string | null; createdAt: string; }
 
 export type DepositType = 'MonthlyDeposit' | 'InterestPayment' | 'LoanRepayment' | 'Other';
 

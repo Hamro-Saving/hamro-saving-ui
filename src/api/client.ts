@@ -22,7 +22,13 @@ apiClient.interceptors.request.use((config) => {
  * one of these is the answer — wrong password, spent invite — and the page that asked has
  * its own message to show for it.
  */
-const PRE_AUTH_PATHS = ['/auth/login', '/auth/signup', '/auth/signup-info'];
+const PRE_AUTH_PATHS = [
+  '/auth/login',
+  '/auth/signup',
+  '/auth/signup-info',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+];
 
 /**
  * How the app is told a session has ended. AuthProvider registers itself here so the React

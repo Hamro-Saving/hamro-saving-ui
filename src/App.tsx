@@ -7,6 +7,8 @@ import Sidebar from './components/Sidebar';
 import Logo from './components/Logo';
 import Login from './pages/login/Login';
 import Signup from './pages/signup/Signup';
+import ForgotPassword from './pages/password/ForgotPassword';
+import ResetPassword from './pages/password/ResetPassword';
 import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard';
 import Dashboard from './pages/dashboard/Dashboard';
 import Members from './pages/members/Members';
@@ -83,6 +85,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/" element={<HomeRedirect />} />
 
       {ROUTES.map(({ path, requires, standalone }) => (

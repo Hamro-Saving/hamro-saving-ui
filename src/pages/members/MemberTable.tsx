@@ -38,6 +38,21 @@ function AccountNote({ member }: { member: Member }) {
     : <span className="text-[11px] leading-none text-gray-400">No login</span>;
 }
 
+/**
+ * When this person was last in. A blank is only worth filling when there was something to
+ * report: for a pending invite or someone who never had a login, AccountNote has already
+ * said why nobody has signed in, and "Never signed in" under it would only say it twice.
+ */
+function LastSeen({ member }: { member: Member }) {
+  const note = member.lastLoginAt
+    ? `Last seen ${formatDate(member.lastLoginAt)}`
+    : member.hasAccount ? 'Never signed in' : null;
+
+  if (!note) return null;
+
+  return <span className="text-[11px] leading-none text-gray-400 whitespace-nowrap">{note}</span>;
+}
+
 interface MemberTableProps {
   rows: Member[];
   /** Non-members owe rather than deposit, so the money column changes with the list. */
@@ -147,9 +162,7 @@ export default function MemberTable({ rows, loading, canEdit, emptyLabel, onEdit
                       {m.isActive ? 'Active' : 'Inactive'}
                     </Badge>
                     <AccountNote member={m} />
-                    <span className="text-[11px] leading-none text-gray-400 whitespace-nowrap">
-                      Joined {formatDate(m.createdAt)}
-                    </span>
+                    <LastSeen member={m} />
                   </div>
                 </td>
                 {canEdit && (

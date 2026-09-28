@@ -18,4 +18,14 @@ export const authApi = {
     const { data } = await apiClient.post<{ token: string }>('/auth/signup', { token, password });
     return data.token;
   },
+  /**
+   * Asks for a reset link. Succeeds whether or not the address is known — the server will
+   * not say which, so neither can the page that calls this.
+   */
+  forgotPassword: async (email: string): Promise<void> => {
+    await apiClient.post('/auth/forgot-password', { email });
+  },
+  resetPassword: async (token: string, password: string): Promise<void> => {
+    await apiClient.post('/auth/reset-password', { token, password });
+  },
 };
