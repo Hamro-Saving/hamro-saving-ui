@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { loansApi } from '../../api/finance';
 import { membersApi } from '../../api/groups';
@@ -40,7 +40,11 @@ export default function Loans() {
   // A cancelled loan came to nothing and has no entries, so it can be cleared away.
   const [deletingLoan, setDeletingLoan] = useState<Loan | null>(null);
   const [payingLoan, setPayingLoan] = useState<Loan | null>(null);
-  const [filterStatus, setFilterStatus] = useState('');
+  // The status filter lives in the URL, so a link can open the page already filtered.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterStatus = LOAN_STATUS_FILTERS.find(s => s === searchParams.get('status')) ?? '';
+  const setFilterStatus = (status: string) =>
+    setSearchParams(status ? { status } : {}, { replace: true });
   const [form, setForm] = useState(emptyLoan);
   // The group cannot lend money it is not holding. The API owns that rule and phrases the
   // refusal — including the actual figures — so both forms just show what it said.
