@@ -6,7 +6,7 @@ import { membersApi } from '../../api/groups';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
 import { formatCurrency, formatDate, todayIso } from '../../utils/format';
-import { STATUS_COLORS, LOAN_STATUS_FILTERS, isLive, loanAmountSide, wasReducedAtDisbursement } from './loanMath';
+import { STATUS_COLORS, LOAN_STATUS_FILTERS, DEFAULT_LOAN_STATUS_FILTER, isLive, loanAmountSide, wasReducedAtDisbursement } from './loanMath';
 import LoanWorkflowPanel from './LoanWorkflowPanel';
 import RecordPaymentModal from './RecordPaymentModal';
 import type { BorrowerType, Loan } from '../../api/types';
@@ -41,10 +41,11 @@ export default function Loans() {
   const [deletingLoan, setDeletingLoan] = useState<Loan | null>(null);
   const [payingLoan, setPayingLoan] = useState<Loan | null>(null);
   // The status filter lives in the URL, so a link can open the page already filtered.
+  // With none given the page opens on active loans; "All" has to be asked for explicitly.
   const [searchParams, setSearchParams] = useSearchParams();
-  const filterStatus = LOAN_STATUS_FILTERS.find(s => s === searchParams.get('status')) ?? '';
+  const filterStatus = LOAN_STATUS_FILTERS.find(s => s === searchParams.get('status')) ?? DEFAULT_LOAN_STATUS_FILTER;
   const setFilterStatus = (status: string) =>
-    setSearchParams(status ? { status } : {}, { replace: true });
+    setSearchParams(status === DEFAULT_LOAN_STATUS_FILTER ? {} : { status }, { replace: true });
   const [form, setForm] = useState(emptyLoan);
   // The group cannot lend money it is not holding. The API owns that rule and phrases the
   // refusal — including the actual figures — so both forms just show what it said.
@@ -61,7 +62,7 @@ export default function Loans() {
 
   const { data: loans, isLoading } = useQuery({
     queryKey: ['loans', user?.activeGroupId, filterStatus],
-    queryFn: () => loansApi.getAll({ status: filterStatus || undefined }),
+    queryFn: () => loansApi.getAll({ status: filterStatus === 'All' ? undefined : filterStatus }),
   });
   const { data: members } = useQuery({ queryKey: ['members', user?.activeGroupId], queryFn: () => membersApi.getAll({ roles: ['Member', 'Admin'] }) });
   const { data: nonMembers } = useQuery({ queryKey: ['non-members', user?.activeGroupId], queryFn: () => membersApi.getAll({ roles: ['NonMember'] }) });
@@ -133,7 +134,7 @@ export default function Loans() {
             key={s}
             onClick={() => setFilterStatus(s)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${filterStatus === s ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
-            {s || 'All'}
+            {s}
           </button>
         ))}
       </div>

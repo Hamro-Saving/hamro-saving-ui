@@ -11,7 +11,10 @@ export const STATUS_COLORS: Record<LoanStatus, string> = {
   Declined: 'bg-rose-100 text-rose-700',
 };
 
-export const LOAN_STATUS_FILTERS = ['', 'Pending', 'Approved', 'Active', 'PaidOff', 'Overdue', 'Declined', 'Cancelled'] as const;
+export const LOAN_STATUS_FILTERS = ['All', 'Pending', 'Approved', 'Active', 'PaidOff', 'Overdue', 'Declined', 'Cancelled'] as const;
+
+/** The loans page opens on what is currently out with borrowers. */
+export const DEFAULT_LOAN_STATUS_FILTER = 'Active';
 
 /** A loan that is out with the borrower and still accruing. */
 export const isLive = (loan: Loan) => loan.status === 'Active' || loan.status === 'Overdue';
